@@ -74,6 +74,7 @@ Pull requests should include a brief summary, the files changed, and screenshots
 - Explain changes: provide high-level summaries at meaningful milestones.
 - Document results: add a review section to `tasks/todo.md`.
 - Capture lessons: update `tasks/lessons.md` after user corrections.
+- Demo artifacts: for meaningful changes, create or update a `demo/` folder containing clear reproduction steps, test instructions, expected outputs, screenshots or sample data when useful, and any commands needed to verify the project behavior.
 
 ## Core Principles
 - Simplicity first: make every change as simple as possible.
