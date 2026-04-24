@@ -1,0 +1,24 @@
+{
+  "scenarioId": "mri-lumbar-spine-golden",
+  "description": "Canonical M1 MRI lumbar spine prior authorization requirement-discovery scenario.",
+  "bundlePath": "data/seed/mri_lumbar_spine_golden/fhir-bundle.json",
+  "rulePackPath": "data/payer-rules/mri-lumbar-spine.acme-health.v1.json",
+  "request": {
+    "patientId": "patient-mri-001",
+    "coverageId": "coverage-acme-001",
+    "requestResourceType": "ServiceRequest",
+    "requestResourceId": "servicerequest-mri-lumbar-001",
+    "serviceLine": "mri_lumbar_spine",
+    "payerId": "acme-health"
+  },
+  "expected": {
+    "evaluationId": "eval-8a673eae6c28942c",
+    "evaluationStatus": "requirements_found",
+    "requiresPriorAuth": true,
+    "requiresDocs": true,
+    "matchedRuleId": "mri-lspine-acme-001",
+    "rulePackVersion": "2026.04.23",
+    "nextAction": "create_work_item",
+    "missingDataCount": 0
+  }
+}
