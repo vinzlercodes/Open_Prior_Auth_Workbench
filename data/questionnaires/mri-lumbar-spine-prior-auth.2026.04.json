@@ -1,0 +1,82 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "mri-lumbar-spine-prior-auth",
+  "url": "http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth",
+  "version": "2026.04",
+  "status": "active",
+  "title": "MRI Lumbar Spine Prior Authorization",
+  "subjectType": ["Patient"],
+  "item": [
+    {
+      "linkId": "patient-name",
+      "text": "Patient name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "payer-name",
+      "text": "Payer",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "requested-service",
+      "text": "Requested service",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "diagnosis-summary",
+      "text": "Diagnosis summary",
+      "type": "text",
+      "required": true
+    },
+    {
+      "linkId": "conservative-treatment-evidence",
+      "text": "Conservative treatment evidence",
+      "type": "text",
+      "required": true
+    },
+    {
+      "linkId": "clinical-urgency",
+      "text": "Clinical urgency",
+      "type": "choice",
+      "required": true,
+      "answerOption": [
+        {
+          "valueCoding": {
+            "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+            "code": "routine",
+            "display": "Routine"
+          }
+        },
+        {
+          "valueCoding": {
+            "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+            "code": "urgent",
+            "display": "Urgent"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "prior-spine-surgery",
+      "text": "Has the patient had prior lumbar spine surgery?",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "linkId": "prior-spine-surgery-details",
+      "text": "Prior lumbar spine surgery details",
+      "type": "text",
+      "required": true,
+      "enableWhen": [
+        {
+          "question": "prior-spine-surgery",
+          "operator": "=",
+          "answerBoolean": true
+        }
+      ]
+    }
+  ]
+}
