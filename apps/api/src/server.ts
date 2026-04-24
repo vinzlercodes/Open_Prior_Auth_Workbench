@@ -1,8 +1,15 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
-import type { RequirementEvaluationRequest, WorkItemCreateRequest } from "@open-prior-auth/shared-types";
+import type {
+  QuestionnairePackageRequest,
+  QuestionnaireResponseSaveRequest,
+  RequirementEvaluationRequest,
+  WorkItemCreateRequest
+} from "@open-prior-auth/shared-types";
+import { OperationOutcomeError } from "./errors.js";
 import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
+import { QuestionnaireService } from "./questionnaires/questionnaireService.js";
 import { MemoryStore } from "./storage/memoryStore.js";
 
 export interface ApiDependencies {
@@ -18,6 +25,10 @@ export function createServer(dependencies: ApiDependencies = {}) {
     try {
       await routeRequest(request, response, repository, store);
     } catch (error) {
+      if (error instanceof OperationOutcomeError) {
+        sendJson(response, error.statusCode, error.outcome);
+        return;
+      }
       sendJson(response, 500, {
         error: error instanceof Error ? error.message : "Unexpected API error"
       });
@@ -32,6 +43,7 @@ async function routeRequest(
   store: MemoryStore
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
+  const questionnaireService = new QuestionnaireService(repository, store);
 
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
@@ -63,6 +75,18 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/work-items") {
     const body = await readJson<WorkItemCreateRequest>(request);
     sendJson(response, 201, store.createWorkItem(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/dtr/package") {
+    const body = await readJson<QuestionnairePackageRequest>(request);
+    sendJson(response, 200, questionnaireService.getPackage(body.workItemId));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/dtr/save-response") {
+    const body = await readJson<QuestionnaireResponseSaveRequest>(request);
+    sendJson(response, 200, questionnaireService.saveResponse(body));
     return;
   }
 

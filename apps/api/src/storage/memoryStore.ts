@@ -1,11 +1,12 @@
 import type {
+  QuestionnaireSession,
   RequirementEvaluationRequest,
   RequirementEvaluationResult,
   WorkItem,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
 
-interface RequirementRun {
+export interface RequirementRun {
   request: RequirementEvaluationRequest;
   result: RequirementEvaluationResult;
   createdAt: string;
@@ -23,6 +24,7 @@ interface AuditEvent {
 export class MemoryStore {
   private readonly requirementRuns = new Map<string, RequirementRun>();
   private readonly workItems = new Map<string, WorkItem>();
+  private readonly questionnaireSessions = new Map<string, QuestionnaireSession>();
   private readonly auditLog: AuditEvent[] = [];
 
   saveEvaluation(request: RequirementEvaluationRequest, result: RequirementEvaluationResult): RequirementEvaluationResult {
@@ -76,6 +78,35 @@ export class MemoryStore {
 
   getWorkItem(id: string): WorkItem | null {
     return this.workItems.get(id) ?? null;
+  }
+
+  getRequirementRun(evaluationId: string): RequirementRun | null {
+    return this.requirementRuns.get(evaluationId) ?? null;
+  }
+
+  updateWorkItemStatus(id: string, status: WorkItem["status"], actor = "system"): WorkItem {
+    const workItem = this.workItems.get(id);
+    if (!workItem) {
+      throw new Error(`Unknown work item: ${id}`);
+    }
+
+    const updated = {
+      ...workItem,
+      status
+    };
+    this.workItems.set(id, updated);
+    this.audit(actor, "work_item.status_updated", "WorkItem", id, { status });
+    return updated;
+  }
+
+  getQuestionnaireSession(id: string): QuestionnaireSession | null {
+    return this.questionnaireSessions.get(id) ?? null;
+  }
+
+  saveQuestionnaireSession(session: QuestionnaireSession, actor = "system"): QuestionnaireSession {
+    this.questionnaireSessions.set(session.id, session);
+    this.audit(actor, "questionnaire_session.saved", "QuestionnaireSession", session.id, session);
+    return session;
   }
 
   hasWorkItems(): boolean {

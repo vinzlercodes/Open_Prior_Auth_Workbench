@@ -1,7 +1,17 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { RequirementEvaluationResult, WorkItem } from "@open-prior-auth/shared-types";
+import type {
+  FhirQuestionnaireItem,
+  FhirQuestionnaireResponse,
+  FhirQuestionnaireResponseAnswer,
+  FhirQuestionnaireResponseItem,
+  PrefillSummary,
+  QuestionnairePackage,
+  RequirementEvaluationResult,
+  ValidationIssue,
+  WorkItem
+} from "@open-prior-auth/shared-types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
 
@@ -26,6 +36,8 @@ export default function Home() {
   const [context, setContext] = useState<PatientContext | null>(null);
   const [evaluation, setEvaluation] = useState<RequirementEvaluationResult | null>(null);
   const [workItem, setWorkItem] = useState<WorkItem | null>(null);
+  const [questionnairePackage, setQuestionnairePackage] = useState<QuestionnairePackage | null>(null);
+  const [formResponse, setFormResponse] = useState<FhirQuestionnaireResponse | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -54,6 +66,8 @@ export default function Home() {
     setIsBusy(true);
     setError(null);
     setWorkItem(null);
+    setQuestionnairePackage(null);
+    setFormResponse(null);
     try {
       const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
         method: "POST",
@@ -87,7 +101,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           evaluationId: evaluation.evaluationId,
-          ownerUserId: "m1-demo-operator"
+          ownerUserId: "m2-demo-operator"
         })
       });
       if (!response.ok) {
@@ -101,11 +115,81 @@ export default function Home() {
     }
   }
 
+  async function openFormWorkspace() {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      const pkg = await postJson<QuestionnairePackage>("/dtr/package", { workItemId: workItem.id });
+      setQuestionnairePackage(pkg);
+      setFormResponse(clone(pkg.questionnaireResponse));
+      setWorkItemStatusFromPackage(pkg);
+    } catch (caught) {
+      setError(formatCaught(caught, "Form package lookup failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function saveResponse(markReadyForReview = false) {
+    if (!questionnairePackage || !formResponse) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      const pkg = await postJson<QuestionnairePackage>("/dtr/save-response", {
+        workItemId: questionnairePackage.workItemId,
+        questionnaireResponse: formResponse,
+        revision: questionnairePackage.session.revision,
+        actorUserId: "m2-demo-operator",
+        markReadyForReview
+      });
+      setQuestionnairePackage(pkg);
+      setFormResponse(clone(pkg.questionnaireResponse));
+      setWorkItemStatusFromPackage(pkg);
+    } catch (caught) {
+      setError(formatCaught(caught, "Questionnaire save failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  function updateAnswer(item: FhirQuestionnaireItem, rawValue: string) {
+    if (!formResponse) {
+      return;
+    }
+    setFormResponse(updateResponseAnswer(formResponse, item, rawValue));
+  }
+
+  function resetToPrefill(item: FhirQuestionnaireItem) {
+    if (!formResponse || !questionnairePackage) {
+      return;
+    }
+    const override = questionnairePackage.session.prefillOverrides.find((candidate) => candidate.linkId === item.linkId);
+    const packageItem = findResponseItem(questionnairePackage.questionnaireResponse.item, item.linkId);
+    const originalAnswer = override
+      ? valueToAnswer(item, override.originalValue)
+      : packageItem?.answer?.[0];
+    setFormResponse(updateResponseAnswerObject(formResponse, item.linkId, originalAnswer));
+  }
+
+  function setWorkItemStatusFromPackage(pkg: QuestionnairePackage) {
+    setWorkItem((current) => current
+      ? {
+          ...current,
+          status: pkg.session.status === "review_ready" ? "review_ready" : "questionnaire_in_progress"
+        }
+      : current);
+  }
+
   return (
     <main>
       <section className="topBar">
         <div>
-          <p className="eyebrow">M1 standards sandbox</p>
+          <p className="eyebrow">M2 local DTR-inspired form workspace</p>
           <h1>Open Prior Auth Workbench</h1>
         </div>
         <div className="statusPill">Synthetic data only</div>
@@ -121,6 +205,15 @@ export default function Home() {
           </button>
           <button type="button" onClick={createWorkItem} disabled={isBusy || !evaluation}>
             Create work item
+          </button>
+          <button type="button" onClick={openFormWorkspace} disabled={isBusy || !workItem}>
+            Open form workspace
+          </button>
+          <button type="button" onClick={() => saveResponse(false)} disabled={isBusy || !questionnairePackage}>
+            Save draft
+          </button>
+          <button type="button" onClick={() => saveResponse(true)} disabled={isBusy || !questionnairePackage}>
+            Mark ready
           </button>
         </aside>
 
@@ -181,8 +274,12 @@ export default function Home() {
                 <dd>{workItem.status.replaceAll("_", " ")}</dd>
               </div>
               <div>
-                <dt>From evaluation</dt>
-                <dd>{workItem.evaluationId}</dd>
+                <dt>QuestionnaireResponse</dt>
+                <dd>{questionnairePackage?.questionnaireResponse.status ?? "Not opened"}</dd>
+              </div>
+              <div>
+                <dt>Session revision</dt>
+                <dd>{questionnairePackage?.session.revision ?? "Not opened"}</dd>
               </div>
               <div>
                 <dt>Owner</dt>
@@ -193,10 +290,161 @@ export default function Home() {
             <p className="muted">Create a work item only after evaluating the golden scenario.</p>
           )}
         </section>
+
+        <QuestionnaireWorkspace
+          pkg={questionnairePackage}
+          response={formResponse}
+          onChange={updateAnswer}
+          onReset={resetToPrefill}
+        />
       </section>
 
       {error && <p className="error">{error}</p>}
     </main>
+  );
+}
+
+function QuestionnaireWorkspace({
+  pkg,
+  response,
+  onChange,
+  onReset
+}: {
+  pkg: QuestionnairePackage | null;
+  response: FhirQuestionnaireResponse | null;
+  onChange: (item: FhirQuestionnaireItem, rawValue: string) => void;
+  onReset: (item: FhirQuestionnaireItem) => void;
+}) {
+  if (!pkg || !response) {
+    return (
+      <section className="panel formPanel">
+        <div className="panelHeader">
+          <p className="eyebrow">Form workspace</p>
+          <h2>No questionnaire package loaded</h2>
+        </div>
+        <p className="muted">Open the form workspace after creating a work item.</p>
+      </section>
+    );
+  }
+
+  const issueCount = pkg.validation.issues.length;
+
+  return (
+    <section className="panel formPanel">
+      <div className="panelHeader formHeader">
+        <div>
+          <p className="eyebrow">Local DTR-like package</p>
+          <h2>{pkg.questionnaire.title ?? pkg.questionnaire.id}</h2>
+        </div>
+        <div className="completion">
+          {pkg.completion.requiredAnswered}/{pkg.completion.requiredTotal} required
+          <strong>{pkg.completion.percentage}%</strong>
+        </div>
+      </div>
+
+      <div className={pkg.validation.valid ? "validationSummary valid" : "validationSummary invalid"}>
+        {pkg.validation.valid ? "Validation passed" : `${issueCount} validation issue${issueCount === 1 ? "" : "s"}`}
+      </div>
+
+      <div className="formGrid">
+        {pkg.questionnaire.item.map((item) => (
+          <QuestionnaireField
+            key={item.linkId}
+            item={item}
+            response={response}
+            prefill={pkg.prefill.find((candidate) => candidate.linkId === item.linkId)}
+            issues={pkg.validation.issues.filter((issue) => issue.linkId === item.linkId)}
+            edited={isFieldEdited(pkg, response, item)}
+            disabled={!isEnabled(item, response)}
+            onChange={onChange}
+            onReset={onReset}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function QuestionnaireField({
+  item,
+  response,
+  prefill,
+  issues,
+  edited,
+  disabled,
+  onChange,
+  onReset
+}: {
+  item: FhirQuestionnaireItem;
+  response: FhirQuestionnaireResponse;
+  prefill?: PrefillSummary;
+  issues: ValidationIssue[];
+  edited: boolean;
+  disabled: boolean;
+  onChange: (item: FhirQuestionnaireItem, rawValue: string) => void;
+  onReset: (item: FhirQuestionnaireItem) => void;
+}) {
+  const responseItem = findResponseItem(response.item, item.linkId);
+  const value = controlValue(responseItem?.answer?.[0]);
+
+  return (
+    <label className={disabled ? "field disabledField" : "field"}>
+      <span className="fieldTopline">
+        <span>{item.text ?? item.linkId}{item.required ? " *" : ""}</span>
+        <span className="badges">
+          {prefill && <em>Prefilled from {prefill.sourceResourceType}</em>}
+          {edited && <strong>Edited</strong>}
+        </span>
+      </span>
+
+      {item.type === "text" ? (
+        <textarea
+          value={typeof value === "string" ? value : ""}
+          disabled={disabled}
+          onChange={(event) => onChange(item, event.target.value)}
+        />
+      ) : item.type === "boolean" ? (
+        <select
+          value={typeof value === "boolean" ? String(value) : ""}
+          disabled={disabled}
+          onChange={(event) => onChange(item, event.target.value)}
+        >
+          <option value="">Select</option>
+          <option value="true">Yes</option>
+          <option value="false">No</option>
+        </select>
+      ) : item.type === "choice" ? (
+        <select
+          value={typeof value === "object" && value && "code" in value ? String(value.code) : ""}
+          disabled={disabled}
+          onChange={(event) => onChange(item, event.target.value)}
+        >
+          <option value="">Select</option>
+          {item.answerOption?.map((option) => (
+            <option key={option.valueCoding?.code ?? option.valueString} value={option.valueCoding?.code ?? option.valueString}>
+              {option.valueCoding?.display ?? option.valueString}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          value={typeof value === "string" ? value : ""}
+          disabled={disabled}
+          onChange={(event) => onChange(item, event.target.value)}
+        />
+      )}
+
+      {prefill && (
+        <button className="resetButton" type="button" onClick={() => onReset(item)}>
+          Reset to prefill
+        </button>
+      )}
+      {issues.map((issue) => (
+        <span className={issue.severity === "warning" ? "fieldIssue warning" : "fieldIssue"} key={`${issue.rule}-${issue.message}`}>
+          {issue.message}
+        </span>
+      ))}
+    </label>
   );
 }
 
@@ -207,4 +455,144 @@ function Metric({ label, value }: { label: string; value: string }) {
       <strong>{value}</strong>
     </div>
   );
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(body)
+  });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw payload;
+  }
+
+  return payload as T;
+}
+
+function updateResponseAnswer(
+  response: FhirQuestionnaireResponse,
+  item: FhirQuestionnaireItem,
+  rawValue: string
+): FhirQuestionnaireResponse {
+  return updateResponseAnswerObject(response, item.linkId, valueToAnswer(item, rawValue));
+}
+
+function updateResponseAnswerObject(
+  response: FhirQuestionnaireResponse,
+  linkId: string,
+  answer: FhirQuestionnaireResponseAnswer | undefined
+): FhirQuestionnaireResponse {
+  return {
+    ...response,
+    item: response.item.map((item) => updateResponseItem(item, linkId, answer))
+  };
+}
+
+function updateResponseItem(
+  item: FhirQuestionnaireResponseItem,
+  linkId: string,
+  answer: FhirQuestionnaireResponseAnswer | undefined
+): FhirQuestionnaireResponseItem {
+  if (item.linkId === linkId) {
+    const { answer: _answer, ...rest } = item;
+    return answer ? { ...rest, answer: [answer] } : rest;
+  }
+  return {
+    ...item,
+    ...(item.item ? { item: item.item.map((child) => updateResponseItem(child, linkId, answer)) } : {})
+  };
+}
+
+function valueToAnswer(
+  item: FhirQuestionnaireItem,
+  value: unknown
+): FhirQuestionnaireResponseAnswer | undefined {
+  if (value === "" || value === undefined || value === null) {
+    return undefined;
+  }
+  if (item.type === "boolean") {
+    return { valueBoolean: value === true || value === "true" };
+  }
+  if (item.type === "choice") {
+    const option = item.answerOption?.find((candidate) => candidate.valueCoding?.code === value || candidate.valueString === value);
+    if (option?.valueCoding) {
+      return { valueCoding: option.valueCoding };
+    }
+    if (option?.valueString) {
+      return { valueString: option.valueString };
+    }
+    return undefined;
+  }
+  if (typeof value === "object" && value && "code" in value) {
+    return { valueCoding: value as FhirQuestionnaireResponseAnswer["valueCoding"] };
+  }
+  return { valueString: String(value) };
+}
+
+function findResponseItem(
+  items: FhirQuestionnaireResponseItem[],
+  linkId: string
+): FhirQuestionnaireResponseItem | undefined {
+  for (const item of items) {
+    if (item.linkId === linkId) {
+      return item;
+    }
+    const child = item.item ? findResponseItem(item.item, linkId) : undefined;
+    if (child) {
+      return child;
+    }
+  }
+  return undefined;
+}
+
+function controlValue(answer: FhirQuestionnaireResponseAnswer | undefined): unknown {
+  if (!answer) {
+    return "";
+  }
+  return answer.valueBoolean ?? answer.valueCoding ?? answer.valueString ?? "";
+}
+
+function isFieldEdited(
+  pkg: QuestionnairePackage,
+  response: FhirQuestionnaireResponse,
+  item: FhirQuestionnaireItem
+): boolean {
+  const hasSavedOverride = pkg.session.prefillOverrides.some((override) => override.linkId === item.linkId);
+  if (hasSavedOverride) {
+    return true;
+  }
+  const original = controlValue(findResponseItem(pkg.questionnaireResponse.item, item.linkId)?.answer?.[0]);
+  const current = controlValue(findResponseItem(response.item, item.linkId)?.answer?.[0]);
+  return JSON.stringify(original) !== JSON.stringify(current);
+}
+
+function isEnabled(item: FhirQuestionnaireItem, response: FhirQuestionnaireResponse): boolean {
+  if (!item.enableWhen?.length) {
+    return true;
+  }
+  return item.enableWhen.every((condition) => {
+    const answer = findResponseItem(response.item, condition.question)?.answer?.[0];
+    const value = controlValue(answer);
+    if (condition.operator === "=" && "answerBoolean" in condition) {
+      return value === condition.answerBoolean;
+    }
+    return true;
+  });
+}
+
+function formatCaught(caught: unknown, fallback: string): string {
+  if (caught && typeof caught === "object" && "resourceType" in caught) {
+    const outcome = caught as { issue?: Array<{ diagnostics?: string }> };
+    return outcome.issue?.[0]?.diagnostics ?? fallback;
+  }
+  return caught instanceof Error ? caught.message : fallback;
+}
+
+function clone<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }

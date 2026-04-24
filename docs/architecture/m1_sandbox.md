@@ -13,5 +13,5 @@ M1 keeps the product boundary small:
 
 - Keep FHIR R4 resources recognizable and portable.
 - Keep launch context, resource lookup, and authorization assumptions isolated from business logic.
-- Replace the launch shim with a true SMART/CDS Hooks-compatible boundary in M2.
+- Replace the launch shim with a true SMART/CDS Hooks-compatible boundary after the focused M2 form workspace.
 - Add Medplum self-hosting when it helps the milestone; fall back to the fixture adapter if infrastructure setup starts to dominate the sprint.

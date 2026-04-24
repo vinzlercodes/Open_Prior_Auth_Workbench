@@ -36,6 +36,31 @@ button:disabled {
   cursor: not-allowed;
 }
 
+input,
+select,
+textarea {
+  width: 100%;
+  border: 1px solid #cbd7d2;
+  border-radius: 6px;
+  background: #ffffff;
+  padding: 10px 12px;
+  color: #17201c;
+  font: inherit;
+  line-height: 1.35;
+}
+
+textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  background: #f1f4f3;
+  color: #68766f;
+}
+
 h1,
 h2,
 p,
@@ -87,7 +112,7 @@ h2 {
   display: grid;
   grid-template-columns: 220px minmax(260px, 1fr) minmax(320px, 1.2fr);
   gap: 16px;
-  align-items: start;
+  align-items: flex-start;
 }
 
 .rail {
@@ -109,6 +134,11 @@ h2 {
 
 .queuePanel {
   grid-column: 3;
+}
+
+.formPanel {
+  grid-column: 2 / span 2;
+  min-height: 320px;
 }
 
 .panelHeader {
@@ -195,6 +225,124 @@ h2 {
   font-weight: 700;
 }
 
+.formHeader {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+}
+
+.completion {
+  min-width: 132px;
+  border: 1px solid #d4ddd9;
+  border-radius: 8px;
+  padding: 10px;
+  color: #50615a;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: right;
+}
+
+.completion strong {
+  display: block;
+  margin-top: 4px;
+  color: #1e6b5c;
+  font-size: 18px;
+}
+
+.validationSummary {
+  margin-bottom: 16px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-weight: 800;
+}
+
+.validationSummary.valid {
+  border: 1px solid #95c7a7;
+  background: #eef9f1;
+  color: #20623a;
+}
+
+.validationSummary.invalid {
+  border: 1px solid #dfbc75;
+  background: #fff8e8;
+  color: #6c4e0d;
+}
+
+.formGrid {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 14px;
+}
+
+.fieldTopline {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  color: #17201c;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.badges em,
+.badges strong {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.badges em {
+  background: #eef4f2;
+  color: #50615a;
+}
+
+.badges strong {
+  background: #fff0cd;
+  color: #6c4e0d;
+}
+
+.resetButton {
+  justify-self: start;
+  width: auto;
+  min-height: 32px;
+  border-color: #cbd7d2;
+  background: #ffffff;
+  padding: 6px 10px;
+  color: #1e6b5c;
+  font-size: 13px;
+}
+
+.fieldIssue {
+  color: #8a2020;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.fieldIssue.warning {
+  color: #6c4e0d;
+}
+
+.disabledField {
+  opacity: 0.78;
+}
+
 @media (max-width: 900px) {
   main {
     padding: 16px;
@@ -213,7 +361,25 @@ h2 {
     grid-column: auto;
   }
 
+  .formPanel {
+    grid-column: auto;
+  }
+
   .resultGrid {
     grid-template-columns: 1fr;
+  }
+
+  .formHeader,
+  .fieldTopline {
+    flex-direction: column;
+  }
+
+  .completion {
+    width: 100%;
+    text-align: left;
+  }
+
+  .badges {
+    justify-content: flex-start;
   }
 }
