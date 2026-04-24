@@ -1,0 +1,32 @@
+{
+  "rulePackId": "acme-health-mri-lumbar-spine",
+  "version": "2026.04.23",
+  "payerId": "acme-health",
+  "payerName": "Acme Health Plan",
+  "serviceLine": "mri_lumbar_spine",
+  "rules": [
+    {
+      "id": "mri-lspine-acme-001",
+      "description": "MRI lumbar spine advanced imaging requires prior authorization and supporting diagnosis plus conservative-treatment evidence.",
+      "requiresPriorAuth": true,
+      "requiresDocs": true,
+      "questionnaireCanonicals": [
+        "http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04"
+      ],
+      "requiredClinicalContext": [
+        {
+          "code": "diagnosis-context",
+          "label": "Diagnosis context",
+          "resourceType": "Condition",
+          "detail": "Attach at least one active or recent diagnosis relevant to the lumbar spine imaging request."
+        },
+        {
+          "code": "conservative-treatment-evidence",
+          "label": "Conservative-treatment evidence",
+          "resourceType": "Observation",
+          "detail": "Include evidence of conservative treatment, duration, or clinical rationale for why imaging is needed now."
+        }
+      ]
+    }
+  ]
+}

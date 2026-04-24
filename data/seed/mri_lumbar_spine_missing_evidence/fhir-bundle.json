@@ -1,0 +1,66 @@
+{
+  "resourceType": "Bundle",
+  "id": "bundle-mri-lumbar-spine-missing-evidence",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-mri-001",
+        "name": [
+          {
+            "use": "official",
+            "family": "Rivera",
+            "given": ["Elena"]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Coverage",
+        "id": "coverage-acme-001",
+        "status": "active",
+        "beneficiary": {
+          "reference": "Patient/patient-mri-001"
+        },
+        "payor": [
+          {
+            "display": "Acme Health Plan"
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-low-back-pain-001",
+        "code": {
+          "text": "Lumbar radiculopathy with persistent low back pain"
+        },
+        "subject": {
+          "reference": "Patient/patient-mri-001"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "ServiceRequest",
+        "id": "servicerequest-mri-lumbar-001",
+        "status": "active",
+        "intent": "order",
+        "code": {
+          "text": "MRI lumbar spine without contrast"
+        },
+        "subject": {
+          "reference": "Patient/patient-mri-001"
+        },
+        "reasonReference": [
+          {
+            "reference": "Condition/condition-low-back-pain-001"
+          }
+        ]
+      }
+    }
+  ]
+}
