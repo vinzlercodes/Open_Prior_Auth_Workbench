@@ -3,3 +3,9 @@ doctor/
 __pycache__/
 *.py[cod]
 .DS_Store
+node_modules/
+.next/
+dist/
+coverage/
+.env.local
+*.tsbuildinfo
