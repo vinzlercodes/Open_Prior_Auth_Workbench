@@ -180,10 +180,14 @@ export class MemoryStore {
 
   saveSubmissionReceipt(receipt: SubmissionReceipt, actor = "system"): SubmissionReceipt {
     const previous = this.submissionReceipts.get(receipt.receiptId) ?? null;
-    this.submissionReceipts.set(receipt.receiptId, receipt);
     const packet = this.submissionPackets.get(receipt.packetId);
+    if (!packet) {
+      throw new Error(`Unknown submission packet for receipt audit linkage: ${receipt.packetId}`);
+    }
+
+    this.submissionReceipts.set(receipt.receiptId, receipt);
     this.audit(actor, "submission_receipt.saved", "SubmissionReceipt", receipt.receiptId, previous, receipt, {
-      workItemId: packet?.workItemId,
+      workItemId: packet.workItemId,
       packetId: receipt.packetId,
       receiptId: receipt.receiptId
     });
