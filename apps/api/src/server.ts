@@ -1,8 +1,10 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import type {
+  MoreInfoRequestCreateRequest,
   PacketBuildRequest,
   PacketSubmitRequest,
+  PayerStatusRecordRequest,
   QuestionnairePackageRequest,
   QuestionnaireResponseSaveRequest,
   RequirementEvaluationRequest,
@@ -11,6 +13,7 @@ import type {
 import { OperationOutcomeError } from "./errors.js";
 import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
+import { OperationsService } from "./operations/operationsService.js";
 import { QuestionnaireService } from "./questionnaires/questionnaireService.js";
 import { MemoryStore } from "./storage/memoryStore.js";
 import { SubmissionService } from "./submissions/submissionService.js";
@@ -48,6 +51,7 @@ async function routeRequest(
   const url = new URL(request.url ?? "/", "http://localhost");
   const questionnaireService = new QuestionnaireService(repository, store);
   const submissionService = new SubmissionService(repository, store);
+  const operationsService = new OperationsService(store);
 
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
@@ -79,6 +83,48 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/work-items") {
     const body = await readJson<WorkItemCreateRequest>(request);
     sendJson(response, 201, store.createWorkItem(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/demo/seed-work-items") {
+    const body = await readJson<{ count?: number; ownerUserId?: string }>(request);
+    const count = Math.max(1, Math.min(body.count ?? 3, 10));
+    const baseRequest: RequirementEvaluationRequest = {
+      patientId: "patient-mri-001",
+      coverageId: "coverage-acme-001",
+      requestResourceType: "ServiceRequest",
+      requestResourceId: "servicerequest-mri-lumbar-001",
+      serviceLine: "mri_lumbar_spine",
+      payerId: "acme-health"
+    };
+    const baseResult = evaluateRequirement(baseRequest, repository);
+    const start = store.listWorkItems().length + 1;
+    const created = Array.from({ length: count }, (_, index) => {
+      const demoNumber = String(start + index).padStart(5, "0");
+      const result = store.saveEvaluation(baseRequest, {
+        ...baseResult,
+        evaluationId: `eval-m4demo${demoNumber}`
+      });
+      return store.createWorkItem({
+        evaluationId: result.evaluationId,
+        ownerUserId: body.ownerUserId
+      });
+    });
+    sendJson(response, 201, created);
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/work-items") {
+    sendJson(response, 200, operationsService.listQueue({
+      status: url.searchParams.get("status") ?? undefined,
+      owner: url.searchParams.get("owner") ?? undefined,
+      sort: (url.searchParams.get("sort") as "age_desc" | "age_asc" | "updated_desc" | "updated_asc" | null) ?? undefined
+    }));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/operations/metrics") {
+    sendJson(response, 200, operationsService.getMetrics());
     return;
   }
 
@@ -125,6 +171,26 @@ async function routeRequest(
       return;
     }
     sendJson(response, 200, store.getAuditEventsForWorkItem(workItemId));
+    return;
+  }
+
+  const workItemOperationsMatch = url.pathname.match(/^\/work-items\/([^/]+)\/operations$/);
+  if (request.method === "GET" && workItemOperationsMatch) {
+    sendJson(response, 200, operationsService.getOperationsHistory(decodeURIComponent(workItemOperationsMatch[1])));
+    return;
+  }
+
+  const workItemMoreInfoMatch = url.pathname.match(/^\/work-items\/([^/]+)\/request-more-info$/);
+  if (request.method === "POST" && workItemMoreInfoMatch) {
+    const body = await readJson<MoreInfoRequestCreateRequest>(request);
+    sendJson(response, 200, operationsService.requestMoreInfo(decodeURIComponent(workItemMoreInfoMatch[1]), body));
+    return;
+  }
+
+  const workItemPayerStatusMatch = url.pathname.match(/^\/work-items\/([^/]+)\/record-payer-status$/);
+  if (request.method === "POST" && workItemPayerStatusMatch) {
+    const body = await readJson<PayerStatusRecordRequest>(request);
+    sendJson(response, 200, operationsService.recordPayerStatus(decodeURIComponent(workItemPayerStatusMatch[1]), body));
     return;
   }
 
