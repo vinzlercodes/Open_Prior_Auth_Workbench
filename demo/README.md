@@ -1,15 +1,23 @@
-# M4 Demo: Operations Queue and Mock Payer Loop
+# Demo Guide: M1 to M4 Open Prior Auth Workbench
 
-This demo verifies the M4 implementation of Open Prior Auth Workbench using only synthetic data. It shows the M1 requirement-discovery flow, M2 questionnaire workspace, M3 PAS-style packet builder, and M4 operations layer.
+This guide walks through every demo piece from M1 through M4 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, but each milestone remains visible as a separate part of the flow:
+
+- M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
+- M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
+- M3: PAS-style local packet builder, mock PAS submission, status timeline, and audit trail.
+- M4: operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
+
+No real PHI is required or expected.
 
 ## Demo Data
 
 - Golden scenario: `data/fixtures/golden-scenarios/mri-lumbar-spine.json`
 - Synthetic FHIR bundle: `data/seed/mri_lumbar_spine_golden/fhir-bundle.json`
+- Missing-evidence FHIR bundle: `data/seed/mri_lumbar_spine_missing_evidence/fhir-bundle.json`
 - Payer rule pack: `data/payer-rules/mri-lumbar-spine.acme-health.v1.json`
 - Questionnaire fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`
 
-No real PHI is required or expected.
+The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 
 ## Start the Demo
 
@@ -19,84 +27,487 @@ Install dependencies once:
 npm install
 ```
 
-Run the API:
+Run the API in one terminal:
 
 ```bash
 npm run dev:api
 ```
 
-In another terminal, run the web app:
+Run the web app in another terminal:
 
 ```bash
 npm run dev:web
 ```
 
-Open:
+Open the app:
 
 ```text
 http://localhost:3000
 ```
 
-## UI Reproduction Steps
+The API defaults to `http://127.0.0.1:4000`. The API store is in memory, so restart `npm run dev:api` whenever you want a clean demo state.
 
-1. Click `Seed demo cases` and confirm the operations queue shows multiple synthetic cases.
-2. Select a queue row and confirm the selected case details, metrics, operations history, status timeline, and audit trail update.
-3. Click `Launch shim`, `Evaluate requirements`, and `Create work item` to run the original single-case flow.
-4. Open the form workspace, complete required fields, and click `Mark ready`.
-5. Click `Build packet` and confirm the packet shows `preauthorization` Claim use.
-6. Click `Submit mock PAS` and confirm the work item status becomes `submitted`.
-7. Click `Mark pended` and confirm the queue shows effective status `pended` while the selected case internal status remains `submitted`.
-8. Click `Request more info` and confirm the case moves to `more info needed`.
-9. Reopen the form workspace, revise evidence, and click `Mark ready`.
-10. Build and submit again; the new packet and receipt should differ from the original packet and receipt.
-11. Click `Approve`, `Deny`, or `Cancel case` on a submitted case to exercise terminal payer outcomes.
-12. For denial, confirm the selected operations history shows a structured denial reason.
+## API Helper Setup
 
-## API Reproduction Steps
-
-Read the operations queue:
+The API examples below assume `jq` is available:
 
 ```bash
-curl -s 'http://127.0.0.1:4000/work-items?status=submitted,pended&owner=unassigned&sort=age_desc'
+export API_BASE="http://127.0.0.1:4000"
+export GOLDEN_REQUEST='{
+  "patientId": "patient-mri-001",
+  "coverageId": "coverage-acme-001",
+  "requestResourceType": "ServiceRequest",
+  "requestResourceId": "servicerequest-mri-lumbar-001",
+  "serviceLine": "mri_lumbar_spine",
+  "payerId": "acme-health"
+}'
 ```
 
-Read operations metrics:
+## M1: Requirement Discovery Sandbox
+
+M1 proves that the app can resolve local patient/order context, run deterministic prior-auth requirement discovery, and create a work item only after the requirement result exists. This is CRD-inspired product behavior, not production SMART App Launch or CDS Hooks CRD conformance.
+
+### M1 UI Steps
+
+1. Click `Launch shim`.
+2. Confirm `Patient and order context` fills with the synthetic patient, coverage, MRI lumbar spine request, diagnosis, and conservative-treatment evidence.
+3. Click `Evaluate requirements`.
+4. Confirm `Requirement evaluation` shows `requirements found`.
+5. Confirm the result panel shows:
+   - Evaluation ID `eval-8a673eae6c28942c`
+   - Matched rule `mri-lspine-acme-001`
+   - Next action `create work item`
+   - Missing data `0`
+6. Click `Create work item`.
+7. Confirm `Queue shell` shows work item `wi-8a673eae6c28` with status `requirements found`.
+8. Confirm the `Status timeline` now includes the initial `work_item.created` event.
+
+### M1 API Steps
+
+Check the API:
 
 ```bash
-curl -s http://127.0.0.1:4000/operations/metrics
+curl -s "$API_BASE/health" | jq
 ```
 
-Record a payer-pended update:
+Load patient/order context:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/record-payer-status \
+curl -s "$API_BASE/context/patient/patient-mri-001" | jq
+```
+
+Run requirement discovery:
+
+```bash
+EVALUATION="$(
+  curl -s -X POST "$API_BASE/requirements/evaluate" \
+    -H 'Content-Type: application/json' \
+    -d "$GOLDEN_REQUEST"
+)"
+echo "$EVALUATION" | jq
+export EVALUATION_ID="$(echo "$EVALUATION" | jq -r '.evaluationId')"
+```
+
+Expected checks:
+
+```bash
+echo "$EVALUATION" | jq '{
+  evaluationId,
+  evaluationStatus,
+  requiresPriorAuth,
+  requiresDocs,
+  matchedRuleId,
+  rulePackVersion,
+  nextAction,
+  missingDataCount: (.missingData | length)
+}'
+```
+
+Expected values are `requirements_found`, `requiresPriorAuth: true`, `requiresDocs: true`, matched rule `mri-lspine-acme-001`, rule pack version `2026.04.23`, next action `create_work_item`, and zero missing data.
+
+Create the work item:
+
+```bash
+WORK_ITEM="$(
+  curl -s -X POST "$API_BASE/work-items" \
+    -H 'Content-Type: application/json' \
+    -d "{\"evaluationId\":\"$EVALUATION_ID\",\"ownerUserId\":\"m1-demo-operator\"}"
+)"
+echo "$WORK_ITEM" | jq
+export WORK_ITEM_ID="$(echo "$WORK_ITEM" | jq -r '.id')"
+```
+
+Confirm the work item and status timeline:
+
+```bash
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID" | jq '{id, evaluationId, status, ownerUserId}'
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID/status" | jq
+```
+
+## M2: Form Workspace
+
+M2 proves that the local DTR-inspired package returns a Questionnaire, draft QuestionnaireResponse, validation metadata, prefill provenance, dependency slots, and a session revision. The work item status and QuestionnaireResponse status stay separate.
+
+### M2 UI Steps
+
+1. Start from a M1-created work item.
+2. Click `Open form workspace`.
+3. Confirm the `Form workspace` header shows `MRI Lumbar Spine Prior Authorization`.
+4. Confirm prefilled fields show `Prefilled from Patient`, `Coverage`, `ServiceRequest`, `Condition`, or `Observation` badges.
+5. Confirm the validation summary reports missing required answers because `Clinical urgency` and `Has the patient had prior lumbar spine surgery?` are not yet complete.
+6. Click `Mark ready` without filling the missing fields and confirm validation remains invalid.
+7. Set `Clinical urgency` to `Routine`.
+8. Set `Has the patient had prior lumbar spine surgery?` to `No`.
+9. Confirm `Prior lumbar spine surgery details` stays disabled because the enabling answer is `No`.
+10. Click `Save draft` and confirm the session revision increments while the QuestionnaireResponse remains `in-progress`.
+11. Click `Mark ready`.
+12. Confirm the validation summary changes to `Validation passed`.
+13. Confirm `Queue shell` shows work item status `review ready` and QuestionnaireResponse status `completed`.
+
+### M2 API Steps
+
+Create or reuse the M1 `WORK_ITEM_ID`, then request the local DTR-like package:
+
+```bash
+PACKAGE="$(
+  curl -s -X POST "$API_BASE/dtr/package" \
+    -H 'Content-Type: application/json' \
+    -d "{\"workItemId\":\"$WORK_ITEM_ID\"}"
+)"
+echo "$PACKAGE" | jq '{
+  workItemId,
+  sessionId,
+  questionnaireCanonical,
+  questionnaireVersion,
+  dependencies,
+  validation,
+  completion,
+  session
+}'
+export REVISION="$(echo "$PACKAGE" | jq -r '.session.revision')"
+```
+
+Expected checks:
+
+- `questionnaire.resourceType` is `Questionnaire`.
+- `questionnaireResponse.resourceType` is `QuestionnaireResponse`.
+- `questionnaireResponse.status` is `in-progress`.
+- `dependencies.libraries` and `dependencies.valueSets` are empty arrays.
+- `validation.valid` is `false` before the missing required fields are completed.
+- `session.revision` starts at `1` on first package creation.
+
+Build a completed QuestionnaireResponse from the package and mark it ready:
+
+```bash
+READY_RESPONSE="$(
+  echo "$PACKAGE" | jq '.questionnaireResponse
+    | .item = (.item | map(
+        if .linkId == "clinical-urgency" then
+          .answer = [{
+            "valueCoding": {
+              "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+              "code": "routine",
+              "display": "Routine"
+            }
+          }]
+        elif .linkId == "prior-spine-surgery" then
+          .answer = [{"valueBoolean": false}]
+        else
+          .
+        end
+      ))'
+)"
+
+READY_PACKAGE="$(
+  jq -n \
+    --arg workItemId "$WORK_ITEM_ID" \
+    --argjson questionnaireResponse "$READY_RESPONSE" \
+    --argjson revision "$REVISION" \
+    '{
+      workItemId: $workItemId,
+      questionnaireResponse: $questionnaireResponse,
+      revision: $revision,
+      actorUserId: "m2-demo-operator",
+      markReadyForReview: true
+    }' |
+  curl -s -X POST "$API_BASE/dtr/save-response" \
+    -H 'Content-Type: application/json' \
+    -d @-
+)"
+echo "$READY_PACKAGE" | jq '{
+  validation,
+  completion,
+  questionnaireResponseStatus: .questionnaireResponse.status,
+  sessionStatus: .session.status,
+  revision: .session.revision
+}'
+```
+
+Expected values are `validation.valid: true`, QuestionnaireResponse status `completed`, and session status `review_ready`.
+
+## M3: PAS-Style Packet Builder
+
+M3 proves that a review-ready work item can produce a deterministic PAS-style local packet, freeze the QuestionnaireResponse revision, and submit through mock PAS transport. This is PAS-style local product behavior, not Da Vinci PAS `$submit`, X12 278, endpoint discovery, payer authentication, or real payer adjudication.
+
+### M3 UI Steps
+
+1. Start from a M2 work item with status `review ready`.
+2. Click `Build packet`.
+3. Confirm `PAS-style local packet` changes to `Packet ready`.
+4. Confirm the packet panel shows:
+   - Claim use `preauthorization`
+   - QR revision matching the completed form session
+   - Attachments `0 fixtures`
+   - Message `No document fixtures in M3`
+5. Confirm `Queue shell` now shows status `packet ready`.
+6. Confirm the `Status timeline` includes `review_ready -> packet_ready`.
+7. Click `Submit mock PAS`.
+8. Confirm the packet panel changes to `Mock PAS submitted`.
+9. Confirm the receipt panel shows a `Tracking ID`, transport `mock-pas`, a ClaimResponse ID, and `Idempotent false`.
+10. Confirm `Queue shell` now shows status `submitted`.
+11. Confirm the `Status timeline` includes `packet_ready -> submitted`.
+12. Confirm the `Audit trail` includes work-item, questionnaire-session, submission-packet, and submission-receipt entries.
+
+### M3 API Steps
+
+Build the packet:
+
+```bash
+PACKET="$(
+  curl -s -X POST "$API_BASE/pas/build-packet" \
+    -H 'Content-Type: application/json' \
+    -d "{\"workItemId\":\"$WORK_ITEM_ID\",\"actorUserId\":\"m3-demo-operator\"}"
+)"
+echo "$PACKET" | jq '{
+  id,
+  workItemId,
+  packetSchemaVersion,
+  transport,
+  snapshot,
+  attachmentManifest,
+  claimUse: (.bundle.entry[] | select(.resource.resourceType == "Claim") | .resource.use)
+}'
+export PACKET_ID="$(echo "$PACKET" | jq -r '.id')"
+```
+
+Expected values are packet schema version `m3.local-pas-style.v1`, transport `mock-pas`, Claim use `preauthorization`, and zero attachments.
+
+Submit through mock PAS:
+
+```bash
+RECEIPT="$(
+  curl -s -X POST "$API_BASE/pas/submit" \
+    -H 'Content-Type: application/json' \
+    -d "{\"packetId\":\"$PACKET_ID\",\"actorUserId\":\"m3-demo-operator\"}"
+)"
+echo "$RECEIPT" | jq '{
+  packetId,
+  receiptId,
+  trackingId,
+  submittedAt,
+  transport,
+  idempotent,
+  claimResponse: (.responseBundle.entry[0].resource)
+}'
+```
+
+Confirm status and audit evidence:
+
+```bash
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID" | jq '{id, status}'
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID/status" | jq
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID/audit" | jq 'map({sequence, action, resourceType, resourceId, workItemId, packetId, receiptId})'
+```
+
+Expected checks:
+
+- Work item status is `submitted`.
+- Status timeline includes `review_ready -> packet_ready` and `packet_ready -> submitted`.
+- Audit events are sequence ordered and include `submission_packet.built` and `submission_packet.submitted`.
+- Submitting the same `PACKET_ID` again returns the same receipt with `idempotent: true`.
+
+## M4: Operations Layer and Mock Payer Loop
+
+M4 proves that submitted cases can be managed through an operations queue with derived payer-pended status, metrics, selected-case operations history, more-info loops, structured denials, and terminal outcomes.
+
+### M4 UI Steps
+
+1. Click `Seed demo cases`.
+2. Confirm `Operations queue` shows multiple synthetic cases.
+3. Select a queue row.
+4. Confirm the selected case updates the `Queue shell`, `Status timeline`, `Audit trail`, and `Selected case operations` panels.
+5. In `Status filter`, enter `submitted,pended`.
+6. In `Owner filter`, enter `unassigned`.
+7. Click `Apply filters` and confirm queue rows match the filters.
+8. For a case that is not yet submitted, run the M1-M3 UI path: `Evaluate requirements`, `Create work item`, `Open form workspace`, complete required answers, `Mark ready`, `Build packet`, and `Submit mock PAS`.
+9. Click `Mark pended`.
+10. Confirm the queue row shows effective status `pended` while the selected case internal status remains `submitted`.
+11. Confirm `Selected case operations` shows the latest payer update as `pended`.
+12. Click `Request more info`.
+13. Confirm the selected case status changes to `more info needed`.
+14. Open the form workspace again.
+15. Revise evidence, for example update `Conservative treatment evidence`.
+16. Click `Mark ready`.
+17. Confirm the more-info item is marked resolved and the work item returns to `review ready`.
+18. Click `Build packet` and then `Submit mock PAS` again.
+19. Confirm the new packet ID and receipt ID differ from the original packet and receipt.
+20. On a submitted case, click `Approve`, `Deny`, or `Cancel case`.
+21. For `Deny`, confirm `Selected case operations` shows reason `Insufficient documentation` with the detail `Conservative therapy duration was not documented.`
+22. Confirm approved, denied, and cancelled cases no longer accept more-info or payer-update actions.
+
+### M4 API Steps
+
+Seed queue cases:
+
+```bash
+curl -s -X POST "$API_BASE/demo/seed-work-items" \
   -H 'Content-Type: application/json' \
-  -d '{"status":"pended","actor":"mock-payer","message":"Pending nurse review."}'
+  -d '{"count":3}' | jq 'map({id, status, ownerUserId})'
+```
+
+Read the queue and metrics:
+
+```bash
+curl -s "$API_BASE/work-items?status=submitted,pended&owner=unassigned&sort=age_desc" | jq
+curl -s "$API_BASE/operations/metrics" | jq
+```
+
+Record a payer-pended update on a submitted work item:
+
+```bash
+curl -s -X POST "$API_BASE/work-items/$WORK_ITEM_ID/record-payer-status" \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"pended","actor":"mock-payer","message":"Pending nurse review."}' | jq
+```
+
+Confirm the queue derives `effectiveStatus` without mutating the internal status:
+
+```bash
+curl -s "$API_BASE/work-items?status=pended" | jq 'map({workItemId, status, effectiveStatus, latestPayerStatus})'
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID" | jq '{id, status}'
 ```
 
 Request more information:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/request-more-info \
+curl -s -X POST "$API_BASE/work-items/$WORK_ITEM_ID/request-more-info" \
   -H 'Content-Type: application/json' \
-  -d '{"message":"Please provide conservative therapy details.","requestedItems":[{"code":"conservative-therapy-duration","label":"Duration of conservative therapy","required":true}],"dueAt":"2026-05-02T00:00:00.000Z"}'
+  -d '{
+    "message": "Please provide conservative therapy details.",
+    "requestedItems": [
+      {
+        "code": "conservative-therapy-duration",
+        "label": "Duration of conservative therapy",
+        "required": true
+      }
+    ],
+    "dueAt": "2026-05-02T00:00:00.000Z",
+    "actor": "mock-payer"
+  }' | jq
 ```
 
-Record a structured denial:
+Resolve the more-info loop by reopening the package, revising evidence, and marking ready:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/record-payer-status \
+MORE_INFO_PACKAGE="$(
+  curl -s -X POST "$API_BASE/dtr/package" \
+    -H 'Content-Type: application/json' \
+    -d "{\"workItemId\":\"$WORK_ITEM_ID\"}"
+)"
+MORE_INFO_REVISION="$(echo "$MORE_INFO_PACKAGE" | jq -r '.session.revision')"
+REVISED_RESPONSE="$(
+  echo "$MORE_INFO_PACKAGE" | jq '.questionnaireResponse
+    | .item = (.item | map(
+        if .linkId == "conservative-treatment-evidence" then
+          .answer = [{"valueString": "Patient completed eight weeks of supervised physical therapy and NSAIDs."}]
+        elif .linkId == "clinical-urgency" then
+          .answer = [{
+            "valueCoding": {
+              "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+              "code": "routine",
+              "display": "Routine"
+            }
+          }]
+        elif .linkId == "prior-spine-surgery" then
+          .answer = [{"valueBoolean": false}]
+        else
+          .
+        end
+      ))'
+)"
+
+jq -n \
+  --arg workItemId "$WORK_ITEM_ID" \
+  --argjson questionnaireResponse "$REVISED_RESPONSE" \
+  --argjson revision "$MORE_INFO_REVISION" \
+  '{
+    workItemId: $workItemId,
+    questionnaireResponse: $questionnaireResponse,
+    revision: $revision,
+    actorUserId: "m4-demo-operator",
+    markReadyForReview: true
+  }' |
+curl -s -X POST "$API_BASE/dtr/save-response" \
   -H 'Content-Type: application/json' \
-  -d '{"status":"denied","actor":"mock-payer","reason":{"code":"insufficient-documentation","display":"Insufficient documentation","detail":"Conservative therapy duration was not documented."}}'
+  -d @- | jq '{validation, sessionStatus: .session.status, revision: .session.revision}'
 ```
 
-Read per-case operations history:
+Rebuild and resubmit after the revised evidence:
 
 ```bash
-curl -s http://127.0.0.1:4000/work-items/wi-8a673eae6c28/operations
+SECOND_PACKET="$(
+  curl -s -X POST "$API_BASE/pas/build-packet" \
+    -H 'Content-Type: application/json' \
+    -d "{\"workItemId\":\"$WORK_ITEM_ID\",\"actorUserId\":\"m4-demo-operator\"}"
+)"
+SECOND_PACKET_ID="$(echo "$SECOND_PACKET" | jq -r '.id')"
+curl -s -X POST "$API_BASE/pas/submit" \
+  -H 'Content-Type: application/json' \
+  -d "{\"packetId\":\"$SECOND_PACKET_ID\",\"actorUserId\":\"m4-demo-operator\"}" | jq
 ```
+
+Record terminal payer outcomes:
+
+```bash
+curl -s -X POST "$API_BASE/work-items/$WORK_ITEM_ID/record-payer-status" \
+  -H 'Content-Type: application/json' \
+  -d '{"status":"approved","actor":"mock-payer","message":"Approved by mock payer."}' | jq
+```
+
+For denial, use a submitted case that is not already terminal:
+
+```bash
+curl -s -X POST "$API_BASE/work-items/$WORK_ITEM_ID/record-payer-status" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "status": "denied",
+    "actor": "mock-payer",
+    "reason": {
+      "code": "insufficient-documentation",
+      "display": "Insufficient documentation",
+      "detail": "Conservative therapy duration was not documented."
+    }
+  }' | jq
+```
+
+Read selected-case operations history:
+
+```bash
+curl -s "$API_BASE/work-items/$WORK_ITEM_ID/operations" | jq
+```
+
+Expected checks:
+
+- Payer `pended` appears as queue `effectiveStatus` only while internal work item status remains `submitted`.
+- More-info request moves the internal status to `more_info_needed`.
+- Saving a valid revised QuestionnaireResponse resolves the more-info request and returns status to `review_ready`.
+- Revised evidence requires a fresh packet and creates a different packet/receipt pair.
+- Approved, denied, and cancelled cases are terminal.
+- Denied updates require structured `code`, `display`, and `detail` reason fields.
 
 ## Verification Commands
+
+Run these before calling the demo ready:
 
 ```bash
 npm test
@@ -107,14 +518,20 @@ npm run build
 Expected results:
 
 - `npm test`: M1, M2, M3, and M4 contract tests pass.
+- `npm run typecheck`: API, web, and shared-type packages typecheck.
+- `npm run build`: API, web, and shared-type packages build.
 - Queue rows derive `effectiveStatus` exactly from latest payer update plus internal work-item status.
 - Payer decisions include `submittedAt`, `decidedAt`, and `decisionTimeMs`.
 - Stale packets are rejected after QuestionnaireResponse revision changes.
 - Terminal approved, denied, and cancelled cases reject further more-info and payer-update attempts.
 
-## M4 Caveats
+## Caveats
 
+- The launch shim is local and fixture-backed, not production SMART App Launch.
+- Requirement discovery is CRD-inspired, not CDS Hooks CRD conformance.
+- `/dtr/*` endpoints are local DTR-like product endpoints, not a real FHIR `$questionnaire-package` implementation.
+- `/pas/*` endpoints are PAS-style local product endpoints, not Da Vinci PAS `$submit`.
+- Payer updates are synthetic mock-payer events, not real PAS responses or inquiry results.
 - Operations metrics are synthetic local metrics, not payer reporting outputs.
-- Payer updates are mock-payer events, not real PAS responses or inquiry results.
-- The operations queue is in-memory and resets when the API process restarts.
+- The operations queue is in memory and resets when the API process restarts.
 - Audit snapshots include full synthetic local resources for demo/debug visibility. Real-PHI deployments would need payload minimization and redaction before durable audit storage.
