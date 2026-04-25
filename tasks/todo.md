@@ -1,3 +1,20 @@
+# Demo README M1-M4 Update
+
+## Plan
+
+- [x] Review current demo README, milestone architecture notes, API routes, and UI controls.
+- [x] Expand `demo/README.md` with detailed setup, demo data, and milestone walkthroughs for M1 through M4.
+- [x] Verify the updated README references real routes, controls, statuses, and fixture paths.
+
+## Review
+
+- Replaced the M4-only demo README with a full M1-M4 demo guide covering setup, synthetic fixture data, UI walkthroughs, API walkthroughs, verification commands, and caveats.
+- M1 now documents launch context, deterministic requirement discovery, expected golden evaluation fields, work-item creation, and status timeline checks.
+- M2 now documents local DTR-like package creation, prefill provenance, required-field validation, save draft, mark ready, and QuestionnaireResponse/work-item status separation.
+- M3 now documents packet build, preauthorization Claim checks, mock PAS submission, idempotency, status timeline, and audit trail checks.
+- M4 now documents operations queue seeding, filters, metrics, payer-pended effective status, more-info resolution, resubmission after revised evidence, structured denial, and terminal outcomes.
+- `npm test` passed with 38 tests after rerunning with localhost permission for route-level API tests.
+
 # M4 Operations Layer Tracker
 
 ## Plan
