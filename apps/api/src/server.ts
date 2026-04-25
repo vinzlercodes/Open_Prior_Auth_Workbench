@@ -117,6 +117,17 @@ async function routeRequest(
     return;
   }
 
+  const workItemAuditMatch = url.pathname.match(/^\/work-items\/([^/]+)\/audit$/);
+  if (request.method === "GET" && workItemAuditMatch) {
+    const workItemId = decodeURIComponent(workItemAuditMatch[1]);
+    if (!store.getWorkItem(workItemId)) {
+      sendJson(response, 404, { error: "Work item not found" });
+      return;
+    }
+    sendJson(response, 200, store.getAuditEventsForWorkItem(workItemId));
+    return;
+  }
+
   const workItemMatch = url.pathname.match(/^\/work-items\/([^/]+)$/);
   if (request.method === "GET" && workItemMatch) {
     const workItem = store.getWorkItem(decodeURIComponent(workItemMatch[1]));

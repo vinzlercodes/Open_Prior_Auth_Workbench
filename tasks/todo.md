@@ -1,5 +1,14 @@
 # M3 PAS-Style Local Packet Builder Tracker
 
+## M3 Audit Trail Gap Plan
+
+- [x] Add shared audit event contract with monotonic sequence, stable event ID, and `beforeJson` / `afterJson` snapshots.
+- [x] Update the in-memory store to capture full resource snapshots and work-item linkage.
+- [x] Add work-item scoped audit API coverage for linked questionnaire, packet, receipt, and work-item events.
+- [x] Add compact web demo audit summary without rendering full JSON payloads.
+- [x] Document synthetic-only full audit snapshot posture.
+- [x] Run `npm test`, `npm run typecheck`, and `npm run build`.
+
 ## Plan
 
 - [x] Review the strategy report roadmap, M2 implementation, and M3 plan refinements.
@@ -26,6 +35,14 @@
 
 ## Review
 
+- M3 audit gap fix adds `GET /work-items/:id/audit` with sequence-ordered events and `beforeJson` / `afterJson` snapshots mapped to the strategy report's `before_json` / `after_json` fields.
+- Audit linkage now returns work-item, questionnaire session, submission packet, and submission receipt events for a work item even when the event resource ID differs from the work item ID.
+- The web demo shows compact audit metadata only: action, actor, resource, time, and before/after capture status.
+- Full audit snapshots are documented as synthetic-data-only; real-PHI usage would require minimization and redaction.
+- `npm test` passed after localhost approval for the route-level audit endpoint test: 28 total tests.
+- `npm run typecheck` passed across API, web, and shared-types workspaces.
+- `npm run build` passed across API, web, and shared-types workspaces.
+- Local dev servers started for the audit update: API health check returned `status: ok` at `http://127.0.0.1:4000`, and the web app returned HTTP 200 at `http://127.0.0.1:3001`.
 - `npm test` passed: 24 total tests covering M1 requirements behavior, M2 questionnaire package/session behavior, and M3 packet/submit behavior.
 - `npm run typecheck` passed across API, web, and shared-types workspaces.
 - `npm run build` passed across API, web, and shared-types workspaces.

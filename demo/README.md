@@ -191,10 +191,13 @@ npm run build
 Expected results:
 
 - `npm test`: M1, M2, and M3 contract tests pass.
+- `GET /work-items/:id/audit`: returns sequenced audit events with `beforeJson` and `afterJson` snapshots for work-item, questionnaire, packet, and receipt changes.
 - `npm run typecheck`: API, web, and shared-types workspaces pass.
 - `npm run build`: API, web, and shared-types workspaces build successfully.
 
 ## M3 Caveats
+
+- Audit snapshots include full synthetic local resources for demo/debug visibility. Real-PHI deployments would need payload minimization and redaction before durable audit storage.
 
 - This is local DTR-inspired behavior, not a real FHIR `$questionnaire-package` implementation.
 - This is a PAS-style local packet and mock transport, not real Da Vinci PAS `$submit`.

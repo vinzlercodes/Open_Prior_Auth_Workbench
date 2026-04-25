@@ -6,6 +6,7 @@ import { evaluateRequirement } from "../apps/api/dist/evaluation/evaluate.js";
 import { OperationOutcomeError } from "../apps/api/dist/errors.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
 import { QuestionnaireService } from "../apps/api/dist/questionnaires/questionnaireService.js";
+import { createServer } from "../apps/api/dist/server.js";
 import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 import { SubmissionService } from "../apps/api/dist/submissions/submissionService.js";
 
@@ -73,6 +74,29 @@ function assertOutcome(error, statusCode, code) {
 
 function findResource(bundle, resourceType) {
   return bundle.entry.find((entry) => entry.resource.resourceType === resourceType)?.resource;
+}
+
+function auditActions(events, action) {
+  return events.filter((event) => event.action === action);
+}
+
+async function withTestServer(store, callback) {
+  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+  const server = createServer({ repository, store });
+
+  await new Promise((resolveServer) => {
+    server.listen(0, "127.0.0.1", resolveServer);
+  });
+
+  try {
+    const address = server.address();
+    assert.ok(address && typeof address === "object");
+    await callback(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise((resolveServer, reject) => {
+      server.close((error) => error ? reject(error) : resolveServer());
+    });
+  }
 }
 
 test("building a PAS-style local packet requires a review-ready work item", () => {
@@ -207,4 +231,122 @@ test("submit rejects a stale packet after the QuestionnaireResponse revision cha
       return true;
     }
   );
+});
+
+test("audit trail returns sequence-ordered full snapshots for M3 lifecycle changes", () => {
+  const { questionnaireService, store, submissionService, workItem } = createFixture();
+  markReady(questionnaireService, workItem);
+  const packet = submissionService.buildPacket({
+    workItemId: workItem.id,
+    actorUserId: "m3-test-operator"
+  });
+  const receipt = submissionService.submitPacket({
+    packetId: packet.id,
+    actorUserId: "m3-test-operator"
+  });
+  const events = store.getAuditEventsForWorkItem(workItem.id);
+  const sequences = events.map((event) => event.sequence);
+  const created = events.find((event) => event.action === "work_item.created");
+  const reviewReady = events.find((event) =>
+    event.action === "work_item.status_updated"
+    && event.beforeJson.status === "questionnaire_in_progress"
+    && event.afterJson.status === "review_ready"
+  );
+  const packetReady = events.find((event) => event.action === "submission_packet.built");
+  const submitted = events.find((event) => event.action === "submission_packet.submitted");
+
+  assert.deepEqual(sequences, [...sequences].sort((first, second) => first - second));
+  assert.ok(events.every((event) => event.eventId.startsWith("ae-")));
+  assert.ok(created);
+  assert.ok(reviewReady);
+  assert.ok(packetReady);
+  assert.ok(submitted);
+  assert.equal(created.beforeJson, null);
+  assert.equal(created.afterJson.id, workItem.id);
+  assert.equal(created.afterJson.status, "requirements_found");
+  assert.equal(reviewReady.beforeJson.id, workItem.id);
+  assert.equal(reviewReady.afterJson.id, workItem.id);
+  assert.equal(reviewReady.beforeJson.status, "questionnaire_in_progress");
+  assert.equal(reviewReady.afterJson.status, "review_ready");
+  assert.equal(packetReady.beforeJson.status, "review_ready");
+  assert.equal(packetReady.afterJson.status, "packet_ready");
+  assert.equal(packetReady.packetId, packet.id);
+  assert.equal(submitted.beforeJson.status, "packet_ready");
+  assert.equal(submitted.afterJson.status, "submitted");
+  assert.equal(submitted.packetId, packet.id);
+  assert.equal(submitted.receiptId, receipt.receiptId);
+});
+
+test("work-item audit includes linked questionnaire, packet, and receipt resources", () => {
+  const { questionnaireService, store, submissionService, workItem } = createFixture();
+  markReady(questionnaireService, workItem);
+  const packet = submissionService.buildPacket({
+    workItemId: workItem.id,
+    actorUserId: "m3-test-operator"
+  });
+  const receipt = submissionService.submitPacket({
+    packetId: packet.id,
+    actorUserId: "m3-test-operator"
+  });
+  const events = store.getAuditEventsForWorkItem(workItem.id);
+  const resourceTypes = new Set(events.map((event) => event.resourceType));
+
+  assert.ok(resourceTypes.has("WorkItem"));
+  assert.ok(resourceTypes.has("QuestionnaireSession"));
+  assert.ok(resourceTypes.has("SubmissionPacket"));
+  assert.ok(resourceTypes.has("SubmissionReceipt"));
+  assert.ok(events.some((event) => event.resourceType === "QuestionnaireSession" && event.resourceId !== workItem.id));
+  assert.ok(events.some((event) => event.resourceType === "SubmissionPacket" && event.resourceId === packet.id));
+  assert.ok(events.some((event) => event.resourceType === "SubmissionReceipt" && event.resourceId === receipt.receiptId));
+});
+
+test("idempotent packet rebuild and receipt re-submit do not create duplicate saved audit events", () => {
+  const { questionnaireService, store, submissionService, workItem } = createFixture();
+  markReady(questionnaireService, workItem);
+  const packet = submissionService.buildPacket({
+    workItemId: workItem.id,
+    actorUserId: "m3-test-operator"
+  });
+  submissionService.buildPacket({
+    workItemId: workItem.id,
+    actorUserId: "m3-test-operator"
+  });
+  const receipt = submissionService.submitPacket({
+    packetId: packet.id,
+    actorUserId: "m3-test-operator"
+  });
+  submissionService.submitPacket({
+    packetId: packet.id,
+    actorUserId: "m3-test-operator"
+  });
+  const events = store.getAuditEventsForWorkItem(workItem.id);
+
+  assert.equal(auditActions(events, "submission_packet.saved").length, 1);
+  assert.equal(auditActions(events, "submission_receipt.saved").length, 1);
+  assert.equal(auditActions(events, "submission_packet.submitted").length, 1);
+  assert.equal(receipt.idempotent, false);
+});
+
+test("work-item audit endpoint returns linked audit events and 404 for unknown work items", async () => {
+  const { questionnaireService, store, submissionService, workItem } = createFixture();
+  markReady(questionnaireService, workItem);
+  const packet = submissionService.buildPacket({
+    workItemId: workItem.id,
+    actorUserId: "m3-test-operator"
+  });
+  submissionService.submitPacket({
+    packetId: packet.id,
+    actorUserId: "m3-test-operator"
+  });
+
+  await withTestServer(store, async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/work-items/${workItem.id}/audit`);
+    const events = await response.json();
+    const missing = await fetch(`${baseUrl}/work-items/missing/audit`);
+
+    assert.equal(response.status, 200);
+    assert.ok(events.some((event) => event.resourceType === "QuestionnaireSession" && event.resourceId !== workItem.id));
+    assert.ok(events.some((event) => event.resourceType === "SubmissionPacket" && event.resourceId === packet.id));
+    assert.equal(missing.status, 404);
+  });
 });

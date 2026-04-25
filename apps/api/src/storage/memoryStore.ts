@@ -1,4 +1,5 @@
 import type {
+  AuditEvent,
   QuestionnaireSession,
   RequirementEvaluationRequest,
   RequirementEvaluationResult,
@@ -15,15 +16,6 @@ export interface RequirementRun {
   createdAt: string;
 }
 
-interface AuditEvent {
-  actor: string;
-  action: string;
-  resourceType: string;
-  resourceId: string;
-  timestamp: string;
-  payload: unknown;
-}
-
 export class MemoryStore {
   private readonly requirementRuns = new Map<string, RequirementRun>();
   private readonly workItems = new Map<string, WorkItem>();
@@ -33,14 +25,16 @@ export class MemoryStore {
   private readonly statusEvents: StatusEvent[] = [];
   private readonly auditLog: AuditEvent[] = [];
   private statusEventCounter = 0;
+  private auditEventCounter = 0;
 
   saveEvaluation(request: RequirementEvaluationRequest, result: RequirementEvaluationResult): RequirementEvaluationResult {
-    this.requirementRuns.set(result.evaluationId, {
+    const run = {
       request,
       result,
       createdAt: new Date().toISOString()
-    });
-    this.audit("system", "requirement_run.saved", "RequirementRun", result.evaluationId, { request, result });
+    };
+    this.requirementRuns.set(result.evaluationId, run);
+    this.audit("system", "requirement_run.saved", "RequirementRun", result.evaluationId, null, run);
     return result;
   }
 
@@ -79,7 +73,9 @@ export class MemoryStore {
     };
 
     this.workItems.set(workItem.id, workItem);
-    this.audit(input.ownerUserId ?? "system", "work_item.created", "WorkItem", workItem.id, workItem);
+    this.audit(input.ownerUserId ?? "system", "work_item.created", "WorkItem", workItem.id, null, workItem, {
+      workItemId: workItem.id
+    });
     this.recordStatusEvent({
       workItemId: workItem.id,
       fromStatus: null,
@@ -120,7 +116,11 @@ export class MemoryStore {
       status
     };
     this.workItems.set(id, updated);
-    this.audit(actor, causedBy, "WorkItem", id, { status, packetId, receiptId });
+    this.audit(actor, causedBy, "WorkItem", id, workItem, updated, {
+      workItemId: id,
+      packetId,
+      receiptId
+    });
     this.recordStatusEvent({
       workItemId: id,
       fromStatus: workItem.status,
@@ -138,8 +138,11 @@ export class MemoryStore {
   }
 
   saveQuestionnaireSession(session: QuestionnaireSession, actor = "system"): QuestionnaireSession {
+    const previous = this.questionnaireSessions.get(session.id) ?? null;
     this.questionnaireSessions.set(session.id, session);
-    this.audit(actor, "questionnaire_session.saved", "QuestionnaireSession", session.id, session);
+    this.audit(actor, "questionnaire_session.saved", "QuestionnaireSession", session.id, previous, session, {
+      workItemId: session.workItemId
+    });
     return session;
   }
 
@@ -162,8 +165,12 @@ export class MemoryStore {
   }
 
   saveSubmissionPacket(packet: SubmissionPacket, actor = "system"): SubmissionPacket {
+    const previous = this.submissionPackets.get(packet.id) ?? null;
     this.submissionPackets.set(packet.id, packet);
-    this.audit(actor, "submission_packet.saved", "SubmissionPacket", packet.id, packet);
+    this.audit(actor, "submission_packet.saved", "SubmissionPacket", packet.id, previous, packet, {
+      workItemId: packet.workItemId,
+      packetId: packet.id
+    });
     return packet;
   }
 
@@ -172,13 +179,26 @@ export class MemoryStore {
   }
 
   saveSubmissionReceipt(receipt: SubmissionReceipt, actor = "system"): SubmissionReceipt {
+    const previous = this.submissionReceipts.get(receipt.receiptId) ?? null;
     this.submissionReceipts.set(receipt.receiptId, receipt);
-    this.audit(actor, "submission_receipt.saved", "SubmissionReceipt", receipt.receiptId, receipt);
+    const packet = this.submissionPackets.get(receipt.packetId);
+    this.audit(actor, "submission_receipt.saved", "SubmissionReceipt", receipt.receiptId, previous, receipt, {
+      workItemId: packet?.workItemId,
+      packetId: receipt.packetId,
+      receiptId: receipt.receiptId
+    });
     return receipt;
   }
 
   getStatusEvents(workItemId: string): StatusEvent[] {
     return this.statusEvents.filter((event) => event.workItemId === workItemId);
+  }
+
+  getAuditEventsForWorkItem(workItemId: string): AuditEvent[] {
+    return this.auditLog
+      .filter((event) => event.workItemId === workItemId)
+      .sort((first, second) => first.sequence - second.sequence)
+      .map((event) => snapshot(event));
   }
 
   hasWorkItems(): boolean {
@@ -194,14 +214,33 @@ export class MemoryStore {
     });
   }
 
-  private audit(actor: string, action: string, resourceType: string, resourceId: string, payload: unknown): void {
+  private audit(
+    actor: string,
+    action: string,
+    resourceType: string,
+    resourceId: string,
+    beforeJson: unknown | null,
+    afterJson: unknown | null,
+    links: Pick<AuditEvent, "workItemId" | "packetId" | "receiptId"> = {}
+  ): void {
+    this.auditEventCounter += 1;
     this.auditLog.push({
+      eventId: `ae-${String(this.auditEventCounter).padStart(6, "0")}`,
+      sequence: this.auditEventCounter,
       actor,
       action,
       resourceType,
       resourceId,
       timestamp: new Date().toISOString(),
-      payload
+      beforeJson: snapshot(beforeJson),
+      afterJson: snapshot(afterJson),
+      ...links
     });
   }
+}
+
+function snapshot<T>(value: T): T {
+  return value === null || value === undefined
+    ? value
+    : JSON.parse(JSON.stringify(value)) as T;
 }
