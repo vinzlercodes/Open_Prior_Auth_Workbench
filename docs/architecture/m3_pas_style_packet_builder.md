@@ -33,7 +33,7 @@ Status events record `eventId`, `workItemId`, `fromStatus`, `toStatus`, `actor`,
 
 M3 exposes `GET /work-items/:id/audit` for a work-item scoped audit trail. Audit events use a monotonic `sequence` and stable `eventId` so consumers can sort by creation order instead of timestamp alone.
 
-Audit events record `actor`, `action`, `resourceType`, `resourceId`, `timestamp`, and resource snapshots in `beforeJson` and `afterJson`, corresponding to the strategy report's `before_json` and `after_json` table fields. Work-item status events capture the full previous and updated `WorkItem`, not only the changed status. Linked questionnaire session, packet, and receipt events are returned with the work item even when their own `resourceId` is not the work item ID.
+Audit events record `actor`, `action`, `resourceType`, `resourceId`, `timestamp`, and resource snapshots in `beforeJson` and `afterJson`, corresponding to the strategy report's `before_json` and `after_json` table fields. Every work-item-related audit event writes `workItemId` when the event is created, so the read API can filter directly on that linkage field. Work-item status events capture the full previous and updated `WorkItem`, not only the changed status. Linked questionnaire session, packet, and receipt events are returned with the work item even when their own `resourceId` is not the work item ID.
 
 Unchanged idempotent operations do not create duplicate saved audit records. If a packet is reused while moving workflow state forward, the marker is named explicitly as `submission_packet.reused`.
 

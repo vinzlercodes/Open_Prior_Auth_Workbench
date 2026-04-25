@@ -257,6 +257,7 @@ test("audit trail returns sequence-ordered full snapshots for M3 lifecycle chang
 
   assert.deepEqual(sequences, [...sequences].sort((first, second) => first - second));
   assert.ok(events.every((event) => event.eventId.startsWith("ae-")));
+  assert.ok(events.every((event) => event.workItemId === workItem.id));
   assert.ok(created);
   assert.ok(reviewReady);
   assert.ok(packetReady);
@@ -295,6 +296,7 @@ test("work-item audit includes linked questionnaire, packet, and receipt resourc
   assert.ok(resourceTypes.has("QuestionnaireSession"));
   assert.ok(resourceTypes.has("SubmissionPacket"));
   assert.ok(resourceTypes.has("SubmissionReceipt"));
+  assert.ok(events.every((event) => event.workItemId === workItem.id));
   assert.ok(events.some((event) => event.resourceType === "QuestionnaireSession" && event.resourceId !== workItem.id));
   assert.ok(events.some((event) => event.resourceType === "SubmissionPacket" && event.resourceId === packet.id));
   assert.ok(events.some((event) => event.resourceType === "SubmissionReceipt" && event.resourceId === receipt.receiptId));
