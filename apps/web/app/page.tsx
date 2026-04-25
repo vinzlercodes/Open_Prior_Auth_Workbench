@@ -6,9 +6,12 @@ import type {
   FhirQuestionnaireResponse,
   FhirQuestionnaireResponseAnswer,
   FhirQuestionnaireResponseItem,
+  SubmissionPacket,
+  SubmissionReceipt,
   PrefillSummary,
   QuestionnairePackage,
   RequirementEvaluationResult,
+  StatusEvent,
   ValidationIssue,
   WorkItem
 } from "@open-prior-auth/shared-types";
@@ -38,6 +41,9 @@ export default function Home() {
   const [workItem, setWorkItem] = useState<WorkItem | null>(null);
   const [questionnairePackage, setQuestionnairePackage] = useState<QuestionnairePackage | null>(null);
   const [formResponse, setFormResponse] = useState<FhirQuestionnaireResponse | null>(null);
+  const [submissionPacket, setSubmissionPacket] = useState<SubmissionPacket | null>(null);
+  const [submissionReceipt, setSubmissionReceipt] = useState<SubmissionReceipt | null>(null);
+  const [statusEvents, setStatusEvents] = useState<StatusEvent[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -68,6 +74,9 @@ export default function Home() {
     setWorkItem(null);
     setQuestionnairePackage(null);
     setFormResponse(null);
+    setSubmissionPacket(null);
+    setSubmissionReceipt(null);
+    setStatusEvents([]);
     try {
       const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
         method: "POST",
@@ -107,7 +116,9 @@ export default function Home() {
       if (!response.ok) {
         throw new Error(`Work item creation failed with ${response.status}`);
       }
-      setWorkItem(await response.json() as WorkItem);
+      const created = await response.json() as WorkItem;
+      setWorkItem(created);
+      await refreshStatus(created.id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Work item creation failed");
     } finally {
@@ -125,7 +136,8 @@ export default function Home() {
       const pkg = await postJson<QuestionnairePackage>("/dtr/package", { workItemId: workItem.id });
       setQuestionnairePackage(pkg);
       setFormResponse(clone(pkg.questionnaireResponse));
-      setWorkItemStatusFromPackage(pkg);
+      setWorkItemStatusFromPackage(pkg, true);
+      await refreshStatus(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Form package lookup failed"));
     } finally {
@@ -150,8 +162,55 @@ export default function Home() {
       setQuestionnairePackage(pkg);
       setFormResponse(clone(pkg.questionnaireResponse));
       setWorkItemStatusFromPackage(pkg);
+      setSubmissionPacket(null);
+      setSubmissionReceipt(null);
+      await refreshWorkItem(pkg.workItemId);
+      await refreshStatus(pkg.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Questionnaire save failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function buildPacket() {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      const packet = await postJson<SubmissionPacket>("/pas/build-packet", {
+        workItemId: workItem.id,
+        actorUserId: "m3-demo-operator"
+      });
+      setSubmissionPacket(packet);
+      setSubmissionReceipt(null);
+      await refreshWorkItem(workItem.id);
+      await refreshStatus(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Packet build failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function submitPacket() {
+    if (!submissionPacket) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      const receipt = await postJson<SubmissionReceipt>("/pas/submit", {
+        packetId: submissionPacket.id,
+        actorUserId: "m3-demo-operator"
+      });
+      setSubmissionReceipt(receipt);
+      await refreshWorkItem(submissionPacket.workItemId);
+      await refreshStatus(submissionPacket.workItemId);
+    } catch (caught) {
+      setError(formatCaught(caught, "Mock PAS submission failed"));
     } finally {
       setIsBusy(false);
     }
@@ -176,20 +235,30 @@ export default function Home() {
     setFormResponse(updateResponseAnswerObject(formResponse, item.linkId, originalAnswer));
   }
 
-  function setWorkItemStatusFromPackage(pkg: QuestionnairePackage) {
+  function setWorkItemStatusFromPackage(pkg: QuestionnairePackage, preservePacketState = false) {
     setWorkItem((current) => current
       ? {
           ...current,
-          status: pkg.session.status === "review_ready" ? "review_ready" : "questionnaire_in_progress"
+          status: preservePacketState && ["packet_ready", "submitted"].includes(current.status)
+            ? current.status
+            : pkg.session.status === "review_ready" ? "review_ready" : "questionnaire_in_progress"
         }
       : current);
+  }
+
+  async function refreshWorkItem(workItemId: string) {
+    setWorkItem(await getJson<WorkItem>(`/work-items/${workItemId}`));
+  }
+
+  async function refreshStatus(workItemId: string) {
+    setStatusEvents(await getJson<StatusEvent[]>(`/work-items/${workItemId}/status`));
   }
 
   return (
     <main>
       <section className="topBar">
         <div>
-          <p className="eyebrow">M2 local DTR-inspired form workspace</p>
+          <p className="eyebrow">M3 PAS-style local submission demo</p>
           <h1>Open Prior Auth Workbench</h1>
         </div>
         <div className="statusPill">Synthetic data only</div>
@@ -214,6 +283,16 @@ export default function Home() {
           </button>
           <button type="button" onClick={() => saveResponse(true)} disabled={isBusy || !questionnairePackage}>
             Mark ready
+          </button>
+          <button
+            type="button"
+            onClick={buildPacket}
+            disabled={isBusy || !workItem || !["review_ready", "packet_ready"].includes(workItem.status)}
+          >
+            Build packet
+          </button>
+          <button type="button" onClick={submitPacket} disabled={isBusy || !submissionPacket}>
+            Submit mock PAS
           </button>
         </aside>
 
@@ -291,6 +370,12 @@ export default function Home() {
           )}
         </section>
 
+        <SubmissionPanel
+          packet={submissionPacket}
+          receipt={submissionReceipt}
+          events={statusEvents}
+        />
+
         <QuestionnaireWorkspace
           pkg={questionnairePackage}
           response={formResponse}
@@ -301,6 +386,65 @@ export default function Home() {
 
       {error && <p className="error">{error}</p>}
     </main>
+  );
+}
+
+function SubmissionPanel({
+  packet,
+  receipt,
+  events
+}: {
+  packet: SubmissionPacket | null;
+  receipt: SubmissionReceipt | null;
+  events: StatusEvent[];
+}) {
+  const claim = packet?.bundle.entry.find((entry) => entry.resource.resourceType === "Claim")?.resource;
+  const claimResponse = receipt?.responseBundle.entry.find((entry) => entry.resource.resourceType === "ClaimResponse")?.resource;
+
+  return (
+    <section className="panel submissionPanel">
+      <div className="panelHeader">
+        <p className="eyebrow">PAS-style local packet</p>
+        <h2>{receipt ? "Mock PAS submitted" : packet ? "Packet ready" : "No packet built"}</h2>
+      </div>
+
+      {packet ? (
+        <div className="resultGrid">
+          <Metric label="Packet ID" value={packet.id} />
+          <Metric label="Claim use" value={String(claim?.use ?? "Not built")} />
+          <Metric label="QR revision" value={String(packet.snapshot.questionnaireResponseRevision)} />
+          <Metric label="Attachments" value={`${packet.attachmentManifest.attachments.length} fixtures`} />
+        </div>
+      ) : (
+        <p className="muted">Build a packet after the questionnaire is marked ready for review.</p>
+      )}
+
+      {packet && (
+        <p className="note">{packet.attachmentManifest.missingFixtureReason}</p>
+      )}
+
+      {receipt && (
+        <div className="receiptBox">
+          <Metric label="Tracking ID" value={receipt.trackingId} />
+          <Metric label="Transport" value={receipt.transport} />
+          <Metric label="ClaimResponse" value={String(claimResponse?.id ?? "Not returned")} />
+          <Metric label="Idempotent" value={String(receipt.idempotent)} />
+        </div>
+      )}
+
+      <div className="timeline">
+        <p className="eyebrow">Status timeline</p>
+        {events.length > 0 ? events.map((event) => (
+          <div className="timelineEvent" key={event.eventId}>
+            <strong>{event.toStatus.replaceAll("_", " ")}</strong>
+            <span>{event.fromStatus ? `${event.fromStatus.replaceAll("_", " ")} -> ` : ""}{event.causedBy}</span>
+            <small>{event.actor} - {event.packetId ?? event.receiptId ?? event.eventId}</small>
+          </div>
+        )) : (
+          <p className="muted">Create a work item to start the lifecycle timeline.</p>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -465,6 +609,17 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
     },
     body: JSON.stringify(body)
   });
+  const payload = await response.json();
+
+  if (!response.ok) {
+    throw payload;
+  }
+
+  return payload as T;
+}
+
+async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`);
   const payload = await response.json();
 
   if (!response.ok) {

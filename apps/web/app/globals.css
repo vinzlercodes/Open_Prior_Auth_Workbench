@@ -136,6 +136,10 @@ h2 {
   grid-column: 3;
 }
 
+.submissionPanel {
+  grid-column: 2 / span 2;
+}
+
 .formPanel {
   grid-column: 2 / span 2;
   min-height: 320px;
@@ -213,6 +217,43 @@ h2 {
   border-left: 4px solid #d6b64b;
   margin-top: 10px;
   padding-left: 10px;
+}
+
+.receiptBox {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.timeline {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 14px;
+}
+
+.timelineEvent {
+  display: grid;
+  gap: 3px;
+  border: 1px solid #e3e9e6;
+  border-radius: 8px;
+  background: #fafbfb;
+  padding: 10px 12px;
+}
+
+.timelineEvent strong {
+  color: #17201c;
+  font-size: 14px;
+}
+
+.timelineEvent span,
+.timelineEvent small {
+  overflow-wrap: anywhere;
+  color: #5b6862;
+  font-size: 12px;
+  line-height: 1.35;
 }
 
 .error {
@@ -361,11 +402,16 @@ h2 {
     grid-column: auto;
   }
 
+  .submissionPanel {
+    grid-column: auto;
+  }
+
   .formPanel {
     grid-column: auto;
   }
 
-  .resultGrid {
+  .resultGrid,
+  .receiptBox {
     grid-template-columns: 1fr;
   }
 
