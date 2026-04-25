@@ -365,3 +365,18 @@ export interface StatusEvent {
   packetId?: string;
   receiptId?: string;
 }
+
+export interface AuditEvent {
+  eventId: string;
+  sequence: number;
+  actor: string;
+  action: string;
+  resourceType: string;
+  resourceId: string;
+  timestamp: string;
+  beforeJson: unknown | null;
+  afterJson: unknown | null;
+  workItemId?: string;
+  packetId?: string;
+  receiptId?: string;
+}
