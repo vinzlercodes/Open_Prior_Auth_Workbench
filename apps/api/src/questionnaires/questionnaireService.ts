@@ -42,7 +42,15 @@ export class QuestionnaireService {
       this.store.saveQuestionnaireSession(session);
     }
 
-    if (!["review_ready", "packet_ready", "submitted"].includes(workItem.status)) {
+    if (![
+      "review_ready",
+      "packet_ready",
+      "submitted",
+      "more_info_needed",
+      "approved",
+      "denied",
+      "cancelled"
+    ].includes(workItem.status)) {
       this.store.updateWorkItemStatus(workItem.id, "questionnaire_in_progress");
     }
 
@@ -55,6 +63,14 @@ export class QuestionnaireService {
     }
 
     const workItem = this.requireWorkItem(input.workItemId);
+    if (["approved", "denied", "cancelled"].includes(workItem.status)) {
+      throw new OperationOutcomeError(
+        409,
+        "conflict",
+        `Work item ${workItem.id} is terminal and cannot accept questionnaire edits. Current status: ${workItem.status}.`
+      );
+    }
+
     const { questionnaire } = this.loadQuestionnaireForWorkItem(workItem);
     const currentSession = this.store.getQuestionnaireSession(sessionId(workItem.id, questionnaire));
 
@@ -84,7 +100,7 @@ export class QuestionnaireService {
         }
       : draftResponse;
     const validation = validateResponse(questionnaire, response);
-    const now = new Date().toISOString();
+    const now = this.store.nowIso();
     const updatedSession: QuestionnaireSession = {
       ...currentSession,
       questionnaireResponse: response,
@@ -102,11 +118,22 @@ export class QuestionnaireService {
     };
 
     this.store.saveQuestionnaireSession(updatedSession, input.actorUserId);
-    this.store.updateWorkItemStatus(
-      workItem.id,
-      ready ? "review_ready" : "questionnaire_in_progress",
-      input.actorUserId
-    );
+    const nextStatus = nextWorkItemStatusAfterQuestionnaireSave(workItem.status, ready);
+    if (workItem.status !== nextStatus) {
+      this.store.updateWorkItemStatus(
+        workItem.id,
+        nextStatus,
+        input.actorUserId
+      );
+    }
+    if (ready && workItem.status === "more_info_needed") {
+      const resolved = this.store.resolveOpenMoreInfoRequest(workItem.id, "user");
+      this.store.recordOperationEvent(workItem.id, "more_info_resolved", "user", {
+        sessionId: updatedSession.id,
+        revision: updatedSession.revision,
+        moreInfoRequestId: resolved?.id
+      });
+    }
 
     return this.toPackage(
       this.requireWorkItem(workItem.id),
@@ -159,7 +186,7 @@ export class QuestionnaireService {
     );
     const prefilledResponse = buildPrefilledResponse(workItem, questionnaire, context);
     const validation = validateResponse(questionnaire, prefilledResponse);
-    const now = new Date().toISOString();
+    const now = this.store.nowIso();
 
     return {
       id: sessionId(workItem.id, questionnaire),
@@ -240,6 +267,23 @@ function assertUniqueLinkIds(questionnaire: FhirQuestionnaire): void {
 
 function sessionId(workItemId: string, questionnaire: FhirQuestionnaire): string {
   return `qs-${evaluationHash(`${workItemId}|${questionnaire.url}|${questionnaire.version}`)}`;
+}
+
+function nextWorkItemStatusAfterQuestionnaireSave(
+  currentStatus: WorkItem["status"],
+  ready: boolean
+): WorkItem["status"] {
+  if (ready) {
+    if (currentStatus === "packet_ready" || currentStatus === "submitted") {
+      return currentStatus;
+    }
+    return "review_ready";
+  }
+
+  if (currentStatus === "more_info_needed" || currentStatus === "packet_ready" || currentStatus === "submitted") {
+    return currentStatus;
+  }
+  return "questionnaire_in_progress";
 }
 
 function buildPrefilledResponse(

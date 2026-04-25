@@ -107,7 +107,7 @@ export class SubmissionService {
       workItem.requestResourceType,
       workItem.requestResourceId
     );
-    const claim = buildClaim(packetId, workItem, session);
+    const claim = buildClaim(packetId, workItem, session, this.store.nowIso());
     const resources = [
       context.patient,
       context.coverage,
@@ -125,13 +125,13 @@ export class SubmissionService {
       id: packetId,
       workItemId: workItem.id,
       packetSchemaVersion: PACKET_SCHEMA_VERSION,
-      builtAt: new Date().toISOString(),
+      builtAt: this.store.nowIso(),
       transport: "mock-pas",
       bundle: {
         resourceType: "Bundle",
         id: `bundle-${packetId}`,
         type: "collection",
-        timestamp: new Date().toISOString(),
+        timestamp: this.store.nowIso(),
         entry: resources.map((resource) => ({
           fullUrl: `urn:uuid:${resource.resourceType}-${resource.id ?? evaluationHash(resource)}`,
           resource
@@ -148,7 +148,7 @@ export class SubmissionService {
   private createReceipt(packet: SubmissionPacket): SubmissionReceipt {
     const receiptId = `receipt-${evaluationHash({ packetId: packet.id, transport: "mock-pas" })}`;
     const trackingId = `mock-pas-${evaluationHash({ packetId: packet.id, receiptId })}`;
-    const submittedAt = new Date().toISOString();
+    const submittedAt = this.store.nowIso();
     const claim = packet.bundle.entry.find((entry) => entry.resource.resourceType === "Claim")?.resource;
     const claimResponse = {
       resourceType: "ClaimResponse",
@@ -219,7 +219,8 @@ function buildSnapshot(workItem: WorkItem, session: QuestionnaireSession): Submi
 function buildClaim(
   packetId: string,
   workItem: WorkItem,
-  session: QuestionnaireSession
+  session: QuestionnaireSession,
+  createdAt: string
 ): FhirResource {
   return {
     resourceType: "Claim",
@@ -241,7 +242,7 @@ function buildClaim(
     provider: {
       display: "Northstar Spine Clinic"
     },
-    created: new Date().toISOString(),
+    created: createdAt,
     priority: {
       text: "normal"
     },

@@ -7,6 +7,8 @@ import type {
   FhirQuestionnaireResponse,
   FhirQuestionnaireResponseAnswer,
   FhirQuestionnaireResponseItem,
+  OperationsMetrics,
+  PayerUpdateStatus,
   SubmissionPacket,
   SubmissionReceipt,
   PrefillSummary,
@@ -14,7 +16,9 @@ import type {
   RequirementEvaluationResult,
   StatusEvent,
   ValidationIssue,
-  WorkItem
+  WorkItem,
+  WorkItemOperationsHistory,
+  WorkItemQueueRow
 } from "@open-prior-auth/shared-types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
@@ -46,6 +50,11 @@ export default function Home() {
   const [submissionReceipt, setSubmissionReceipt] = useState<SubmissionReceipt | null>(null);
   const [statusEvents, setStatusEvents] = useState<StatusEvent[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
+  const [queueRows, setQueueRows] = useState<WorkItemQueueRow[]>([]);
+  const [metrics, setMetrics] = useState<OperationsMetrics | null>(null);
+  const [operationsHistory, setOperationsHistory] = useState<WorkItemOperationsHistory | null>(null);
+  const [queueStatusFilter, setQueueStatusFilter] = useState("");
+  const [queueOwnerFilter, setQueueOwnerFilter] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,10 +86,11 @@ export default function Home() {
     setQuestionnairePackage(null);
     setFormResponse(null);
     setSubmissionPacket(null);
-    setSubmissionReceipt(null);
-    setStatusEvents([]);
-    setAuditEvents([]);
-    try {
+      setSubmissionReceipt(null);
+      setStatusEvents([]);
+      setAuditEvents([]);
+      setOperationsHistory(null);
+      try {
       const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
         method: "POST",
         headers: {
@@ -123,6 +133,7 @@ export default function Home() {
       setWorkItem(created);
       await refreshStatus(created.id);
       await refreshAudit(created.id);
+      await refreshOperations(created.id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Work item creation failed");
     } finally {
@@ -143,6 +154,7 @@ export default function Home() {
       setWorkItemStatusFromPackage(pkg, true);
       await refreshStatus(workItem.id);
       await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Form package lookup failed"));
     } finally {
@@ -172,6 +184,7 @@ export default function Home() {
       await refreshWorkItem(pkg.workItemId);
       await refreshStatus(pkg.workItemId);
       await refreshAudit(pkg.workItemId);
+      await refreshOperations(pkg.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Questionnaire save failed"));
     } finally {
@@ -195,6 +208,7 @@ export default function Home() {
       await refreshWorkItem(workItem.id);
       await refreshStatus(workItem.id);
       await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Packet build failed"));
     } finally {
@@ -217,6 +231,7 @@ export default function Home() {
       await refreshWorkItem(submissionPacket.workItemId);
       await refreshStatus(submissionPacket.workItemId);
       await refreshAudit(submissionPacket.workItemId);
+      await refreshOperations(submissionPacket.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Mock PAS submission failed"));
     } finally {
@@ -266,11 +281,129 @@ export default function Home() {
     setAuditEvents(await getJson<AuditEvent[]>(`/work-items/${workItemId}/audit`));
   }
 
+  async function refreshOperations(workItemId = workItem?.id) {
+    const params = new URLSearchParams();
+    if (queueStatusFilter) {
+      params.set("status", queueStatusFilter);
+    }
+    if (queueOwnerFilter) {
+      params.set("owner", queueOwnerFilter);
+    }
+    params.set("sort", "age_desc");
+    setQueueRows(await getJson<WorkItemQueueRow[]>(`/work-items?${params.toString()}`));
+    setMetrics(await getJson<OperationsMetrics>("/operations/metrics"));
+    if (workItemId) {
+      setOperationsHistory(await getJson<WorkItemOperationsHistory>(`/work-items/${workItemId}/operations`));
+    }
+  }
+
+  async function seedDemoCases() {
+    setIsBusy(true);
+    setError(null);
+    try {
+      const created = await postJson<WorkItem[]>("/demo/seed-work-items", {
+        count: 3
+      });
+      const selected = created[0];
+      setWorkItem(selected);
+      setQuestionnairePackage(null);
+      setFormResponse(null);
+      setSubmissionPacket(null);
+      setSubmissionReceipt(null);
+      await refreshStatus(selected.id);
+      await refreshAudit(selected.id);
+      await refreshOperations(selected.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Demo case seeding failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function selectQueueRow(row: WorkItemQueueRow) {
+    setIsBusy(true);
+    setError(null);
+    try {
+      await refreshWorkItem(row.workItemId);
+      setQuestionnairePackage(null);
+      setFormResponse(null);
+      setSubmissionPacket(null);
+      setSubmissionReceipt(null);
+      await refreshStatus(row.workItemId);
+      await refreshAudit(row.workItemId);
+      await refreshOperations(row.workItemId);
+    } catch (caught) {
+      setError(formatCaught(caught, "Queue selection failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function requestMoreInfo() {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      await postJson(`/work-items/${workItem.id}/request-more-info`, {
+        message: "Please provide conservative therapy details.",
+        requestedItems: [
+          {
+            code: "conservative-therapy-duration",
+            label: "Duration of conservative therapy",
+            required: true
+          }
+        ],
+        dueAt: "2026-05-02T00:00:00.000Z",
+        actor: "mock-payer"
+      });
+      await refreshWorkItem(workItem.id);
+      await refreshStatus(workItem.id);
+      await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "More-info request failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function recordPayerStatus(status: PayerUpdateStatus) {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      await postJson(`/work-items/${workItem.id}/record-payer-status`, {
+        status,
+        actor: "mock-payer",
+        message: status === "pended" ? "Pending mock payer nurse review." : undefined,
+        reason: status === "denied"
+          ? {
+              code: "insufficient-documentation",
+              display: "Insufficient documentation",
+              detail: "Conservative therapy duration was not documented."
+            }
+          : undefined
+      });
+      await refreshWorkItem(workItem.id);
+      await refreshStatus(workItem.id);
+      await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Payer status update failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   return (
     <main>
       <section className="topBar">
         <div>
-          <p className="eyebrow">M3 PAS-style local submission demo</p>
+          <p className="eyebrow">M4 operations workbench demo</p>
           <h1>Open Prior Auth Workbench</h1>
         </div>
         <div className="statusPill">Synthetic data only</div>
@@ -280,6 +413,12 @@ export default function Home() {
         <aside className="rail">
           <button type="button" onClick={launchShim} disabled={isBusy}>
             Launch shim
+          </button>
+          <button type="button" onClick={seedDemoCases} disabled={isBusy}>
+            Seed demo cases
+          </button>
+          <button type="button" onClick={() => refreshOperations()} disabled={isBusy}>
+            Refresh queue
           </button>
           <button type="button" onClick={evaluateRequirements} disabled={isBusy}>
             Evaluate requirements
@@ -306,7 +445,35 @@ export default function Home() {
           <button type="button" onClick={submitPacket} disabled={isBusy || !submissionPacket}>
             Submit mock PAS
           </button>
+          <button type="button" onClick={() => recordPayerStatus("pended")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
+            Mark pended
+          </button>
+          <button type="button" onClick={requestMoreInfo} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
+            Request more info
+          </button>
+          <button type="button" onClick={() => recordPayerStatus("approved")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
+            Approve
+          </button>
+          <button type="button" onClick={() => recordPayerStatus("denied")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
+            Deny
+          </button>
+          <button type="button" onClick={() => recordPayerStatus("cancelled")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
+            Cancel case
+          </button>
         </aside>
+
+        <OperationsPanel
+          rows={queueRows}
+          metrics={metrics}
+          history={operationsHistory}
+          selectedWorkItemId={workItem?.id ?? null}
+          statusFilter={queueStatusFilter}
+          ownerFilter={queueOwnerFilter}
+          onStatusFilterChange={setQueueStatusFilter}
+          onOwnerFilterChange={setQueueOwnerFilter}
+          onRefresh={() => refreshOperations()}
+          onSelect={selectQueueRow}
+        />
 
         <section className="panel contextPanel">
           <div className="panelHeader">
@@ -472,6 +639,120 @@ function SubmissionPanel({
         )) : (
           <p className="muted">Audit entries appear after a work item changes state.</p>
         )}
+      </div>
+    </section>
+  );
+}
+
+function OperationsPanel({
+  rows,
+  metrics,
+  history,
+  selectedWorkItemId,
+  statusFilter,
+  ownerFilter,
+  onStatusFilterChange,
+  onOwnerFilterChange,
+  onRefresh,
+  onSelect
+}: {
+  rows: WorkItemQueueRow[];
+  metrics: OperationsMetrics | null;
+  history: WorkItemOperationsHistory | null;
+  selectedWorkItemId: string | null;
+  statusFilter: string;
+  ownerFilter: string;
+  onStatusFilterChange: (value: string) => void;
+  onOwnerFilterChange: (value: string) => void;
+  onRefresh: () => void;
+  onSelect: (row: WorkItemQueueRow) => void;
+}) {
+  const latestPayerUpdate = history?.payerUpdates.at(-1);
+  const latestMoreInfo = history?.moreInfoRequests.at(-1);
+
+  return (
+    <section className="panel operationsPanel">
+      <div className="panelHeader">
+        <p className="eyebrow">Operations queue</p>
+        <h2>{rows.length} case{rows.length === 1 ? "" : "s"} in view</h2>
+      </div>
+
+      <div className="queueFilters">
+        <label>
+          <span>Status filter</span>
+          <input
+            value={statusFilter}
+            placeholder="submitted,pended"
+            onChange={(event) => onStatusFilterChange(event.target.value)}
+          />
+        </label>
+        <label>
+          <span>Owner filter</span>
+          <input
+            value={ownerFilter}
+            placeholder="unassigned"
+            onChange={(event) => onOwnerFilterChange(event.target.value)}
+          />
+        </label>
+        <button type="button" onClick={onRefresh}>Apply filters</button>
+      </div>
+
+      <div className="metricsStrip">
+        <Metric label="Open" value={String(metrics?.openWorkItems ?? 0)} />
+        <Metric label="Terminal" value={String(metrics?.terminalWorkItems ?? 0)} />
+        <Metric label="Approval rate" value={formatRate(metrics?.approvalRate)} />
+        <Metric label="Decision median" value={formatDuration(metrics?.medianSubmissionToDecisionMs)} />
+      </div>
+
+      <div className="queueList">
+        {rows.length > 0 ? rows.map((row) => (
+          <button
+            className={row.workItemId === selectedWorkItemId ? "queueRow selectedQueueRow" : "queueRow"}
+            key={row.workItemId}
+            type="button"
+            onClick={() => onSelect(row)}
+          >
+            <span>
+              <strong>{row.patientName}</strong>
+              <em>{row.serviceDescription}</em>
+            </span>
+            <span>
+              <strong>{row.effectiveStatus.replaceAll("_", " ")}</strong>
+              <em>{row.status === row.effectiveStatus ? "Internal status" : `Internal: ${row.status.replaceAll("_", " ")}`}</em>
+            </span>
+            <span>
+              <strong>{formatDuration(row.ageMs)}</strong>
+              <em>{row.nextAction}</em>
+            </span>
+          </button>
+        )) : (
+          <p className="muted">Seed demo cases or refresh the queue after creating a work item.</p>
+        )}
+      </div>
+
+      <div className="operationsHistory">
+        <p className="eyebrow">Selected case operations</p>
+        {latestPayerUpdate ? (
+          <p className="note">
+            Latest payer update: {latestPayerUpdate.status}
+            {latestPayerUpdate.reason ? ` - ${latestPayerUpdate.reason.display}: ${latestPayerUpdate.reason.detail}` : ""}
+          </p>
+        ) : (
+          <p className="muted">No payer updates recorded.</p>
+        )}
+        {latestMoreInfo && (
+          <p className="note">
+            More info: {latestMoreInfo.message}
+            {latestMoreInfo.resolvedAt ? " (resolved)" : ""}
+          </p>
+        )}
+        {history?.operationEvents.slice(-4).map((event) => (
+          <div className="timelineEvent" key={event.id}>
+            <strong>{event.type.replaceAll("_", " ")}</strong>
+            <span>{event.actor}</span>
+            <small>{formatAuditTime(event.createdAt)}</small>
+          </div>
+        ))}
       </div>
     </section>
   );
@@ -783,6 +1064,23 @@ function formatAuditTime(timestamp: string): string {
     minute: "2-digit",
     second: "2-digit"
   });
+}
+
+function formatRate(value: number | null | undefined): string {
+  return `${Math.round((value ?? 0) * 100)}%`;
+}
+
+function formatDuration(value: number | null | undefined): string {
+  if (value === null || value === undefined) {
+    return "n/a";
+  }
+  if (value < 60_000) {
+    return `${Math.round(value / 1000)}s`;
+  }
+  if (value < 3_600_000) {
+    return `${Math.round(value / 60_000)}m`;
+  }
+  return `${Math.round(value / 3_600_000)}h`;
 }
 
 function clone<T>(value: T): T {

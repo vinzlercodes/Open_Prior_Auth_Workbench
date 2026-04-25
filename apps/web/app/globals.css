@@ -132,6 +132,10 @@ h2 {
   grid-row: span 2;
 }
 
+.operationsPanel {
+  grid-column: 2 / span 2;
+}
+
 .queuePanel {
   grid-column: 3;
 }
@@ -182,6 +186,83 @@ h2 {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.queueFilters {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 140px;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.queueFilters label {
+  display: grid;
+  gap: 6px;
+  color: #5b6862;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.metricsStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.queueList {
+  display: grid;
+  gap: 8px;
+}
+
+.queueRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.8fr) minmax(120px, 0.7fr);
+  gap: 10px;
+  width: 100%;
+  min-height: 68px;
+  border-color: #d4ddd9;
+  background: #ffffff;
+  color: #17201c;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.queueRow:hover,
+.selectedQueueRow {
+  border-color: #1e6b5c;
+  background: #eef6f3;
+}
+
+.queueRow span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.queueRow strong,
+.queueRow em {
+  overflow-wrap: anywhere;
+}
+
+.queueRow strong {
+  font-size: 13px;
+}
+
+.queueRow em {
+  color: #5b6862;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.operationsHistory {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 14px;
 }
 
 .metric {
@@ -447,6 +528,10 @@ h2 {
     grid-column: auto;
   }
 
+  .operationsPanel {
+    grid-column: auto;
+  }
+
   .submissionPanel {
     grid-column: auto;
   }
@@ -456,7 +541,13 @@ h2 {
   }
 
   .resultGrid,
+  .metricsStrip,
   .receiptBox {
+    grid-template-columns: 1fr;
+  }
+
+  .queueFilters,
+  .queueRow {
     grid-template-columns: 1fr;
   }
 

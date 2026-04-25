@@ -1,5 +1,9 @@
 import type {
   AuditEvent,
+  MoreInfoRequest,
+  OperationEvent,
+  OperationEventType,
+  PayerUpdate,
   QuestionnaireSession,
   RequirementEvaluationRequest,
   RequirementEvaluationResult,
@@ -22,16 +26,28 @@ export class MemoryStore {
   private readonly questionnaireSessions = new Map<string, QuestionnaireSession>();
   private readonly submissionPackets = new Map<string, SubmissionPacket>();
   private readonly submissionReceipts = new Map<string, SubmissionReceipt>();
+  private readonly payerUpdates: PayerUpdate[] = [];
+  private readonly moreInfoRequests = new Map<string, MoreInfoRequest>();
+  private readonly operationEvents: OperationEvent[] = [];
   private readonly statusEvents: StatusEvent[] = [];
   private readonly auditLog: AuditEvent[] = [];
   private statusEventCounter = 0;
   private auditEventCounter = 0;
+  private operationEventCounter = 0;
+  private payerUpdateCounter = 0;
+  private moreInfoRequestCounter = 0;
+
+  constructor(private readonly clock: () => Date = () => new Date()) {}
+
+  nowIso(): string {
+    return this.clock().toISOString();
+  }
 
   saveEvaluation(request: RequirementEvaluationRequest, result: RequirementEvaluationResult): RequirementEvaluationResult {
     const run = {
       request,
       result,
-      createdAt: new Date().toISOString()
+      createdAt: this.nowIso()
     };
     this.requirementRuns.set(result.evaluationId, run);
     this.audit("system", "requirement_run.saved", "RequirementRun", result.evaluationId, null, run);
@@ -68,7 +84,7 @@ export class MemoryStore {
       payerId: run.request.payerId,
       ownerUserId: input.ownerUserId ?? null,
       status,
-      createdAt: new Date().toISOString(),
+      createdAt: this.nowIso(),
       requirementResult: run.result
     };
 
@@ -110,6 +126,8 @@ export class MemoryStore {
     if (workItem.status === status) {
       return workItem;
     }
+
+    assertAllowedTransition(workItem.status, status);
 
     const updated = {
       ...workItem,
@@ -194,6 +212,128 @@ export class MemoryStore {
     return receipt;
   }
 
+  listWorkItems(): WorkItem[] {
+    return [...this.workItems.values()].map((item) => snapshot(item));
+  }
+
+  getSubmissionReceipts(): SubmissionReceipt[] {
+    return [...this.submissionReceipts.values()].map((receipt) => snapshot(receipt));
+  }
+
+  getSubmissionPacketsForWorkItem(workItemId: string): SubmissionPacket[] {
+    return [...this.submissionPackets.values()]
+      .filter((packet) => packet.workItemId === workItemId)
+      .map((packet) => snapshot(packet));
+  }
+
+  getSubmissionReceiptsForWorkItem(workItemId: string): SubmissionReceipt[] {
+    const packetIds = new Set(this.getSubmissionPacketsForWorkItem(workItemId).map((packet) => packet.id));
+    return this.getSubmissionReceipts()
+      .filter((receipt) => packetIds.has(receipt.packetId))
+      .sort((first, second) => first.submittedAt.localeCompare(second.submittedAt));
+  }
+
+  getLatestSubmissionReceiptForWorkItem(workItemId: string): SubmissionReceipt | null {
+    return this.getSubmissionReceiptsForWorkItem(workItemId).at(-1) ?? null;
+  }
+
+  savePayerUpdate(update: Omit<PayerUpdate, "id" | "createdAt"> & { createdAt?: string }): PayerUpdate {
+    this.payerUpdateCounter += 1;
+    const saved: PayerUpdate = {
+      ...update,
+      id: `pu-${String(this.payerUpdateCounter).padStart(6, "0")}`,
+      createdAt: update.createdAt ?? this.nowIso()
+    };
+    this.payerUpdates.push(saved);
+    this.audit(saved.actor, "payer_update.saved", "PayerUpdate", saved.id, null, saved, {
+      workItemId: saved.workItemId
+    });
+    return snapshot(saved);
+  }
+
+  getPayerUpdatesForWorkItem(workItemId: string): PayerUpdate[] {
+    return this.payerUpdates
+      .filter((update) => update.workItemId === workItemId)
+      .sort((first, second) => first.createdAt.localeCompare(second.createdAt) || first.id.localeCompare(second.id))
+      .map((update) => snapshot(update));
+  }
+
+  getLatestPayerUpdateForWorkItem(workItemId: string): PayerUpdate | null {
+    return this.getPayerUpdatesForWorkItem(workItemId).at(-1) ?? null;
+  }
+
+  saveMoreInfoRequest(request: Omit<MoreInfoRequest, "id" | "requestedAt"> & { requestedAt?: string }): MoreInfoRequest {
+    this.moreInfoRequestCounter += 1;
+    const saved: MoreInfoRequest = {
+      ...request,
+      id: `mir-${String(this.moreInfoRequestCounter).padStart(6, "0")}`,
+      requestedAt: request.requestedAt ?? this.nowIso()
+    };
+    this.moreInfoRequests.set(saved.id, saved);
+    this.audit("mock-payer", "more_info_request.saved", "MoreInfoRequest", saved.id, null, saved, {
+      workItemId: saved.workItemId
+    });
+    return snapshot(saved);
+  }
+
+  resolveOpenMoreInfoRequest(workItemId: string, actor: OperationEvent["actor"] = "user"): MoreInfoRequest | null {
+    const openRequest = this.getMoreInfoRequestsForWorkItem(workItemId).find((request) => !request.resolvedAt);
+    if (!openRequest) {
+      return null;
+    }
+
+    const current = this.moreInfoRequests.get(openRequest.id);
+    if (!current) {
+      return null;
+    }
+
+    const resolved = {
+      ...current,
+      resolvedAt: this.nowIso()
+    };
+    this.moreInfoRequests.set(resolved.id, resolved);
+    this.audit(actor, "more_info_request.resolved", "MoreInfoRequest", resolved.id, current, resolved, {
+      workItemId
+    });
+    return snapshot(resolved);
+  }
+
+  getMoreInfoRequestsForWorkItem(workItemId: string): MoreInfoRequest[] {
+    return [...this.moreInfoRequests.values()]
+      .filter((request) => request.workItemId === workItemId)
+      .sort((first, second) => first.requestedAt.localeCompare(second.requestedAt) || first.id.localeCompare(second.id))
+      .map((request) => snapshot(request));
+  }
+
+  recordOperationEvent(
+    workItemId: string,
+    type: OperationEventType,
+    actor: OperationEvent["actor"],
+    details: unknown
+  ): OperationEvent {
+    this.operationEventCounter += 1;
+    const event: OperationEvent = {
+      id: `oe-${String(this.operationEventCounter).padStart(6, "0")}`,
+      workItemId,
+      type,
+      actor,
+      createdAt: this.nowIso(),
+      details: snapshot(details)
+    };
+    this.operationEvents.push(event);
+    this.audit(actor, `operation_event.${type}`, "OperationEvent", event.id, null, event, {
+      workItemId
+    });
+    return snapshot(event);
+  }
+
+  getOperationEventsForWorkItem(workItemId: string): OperationEvent[] {
+    return this.operationEvents
+      .filter((event) => event.workItemId === workItemId)
+      .sort((first, second) => first.createdAt.localeCompare(second.createdAt) || first.id.localeCompare(second.id))
+      .map((event) => snapshot(event));
+  }
+
   getStatusEvents(workItemId: string): StatusEvent[] {
     return this.statusEvents.filter((event) => event.workItemId === workItemId);
   }
@@ -214,7 +354,7 @@ export class MemoryStore {
     this.statusEvents.push({
       ...input,
       eventId: `se-${String(this.statusEventCounter).padStart(6, "0")}`,
-      at: new Date().toISOString()
+      at: this.nowIso()
     });
   }
 
@@ -235,7 +375,7 @@ export class MemoryStore {
       action,
       resourceType,
       resourceId,
-      timestamp: new Date().toISOString(),
+      timestamp: this.nowIso(),
       beforeJson: snapshot(beforeJson),
       afterJson: snapshot(afterJson),
       ...links
@@ -247,4 +387,26 @@ function snapshot<T>(value: T): T {
   return value === null || value === undefined
     ? value
     : JSON.parse(JSON.stringify(value)) as T;
+}
+
+function assertAllowedTransition(from: WorkItem["status"], to: WorkItem["status"]): void {
+  const allowed: Record<WorkItem["status"], WorkItem["status"][]> = {
+    draft: ["requirements_found", "needs_baseline_data", "not_required", "questionnaire_in_progress", "cancelled"],
+    requirements_found: ["questionnaire_in_progress", "cancelled"],
+    not_required: [],
+    needs_baseline_data: ["questionnaire_in_progress", "cancelled"],
+    questionnaire_in_progress: ["review_ready", "cancelled"],
+    review_ready: ["packet_ready", "questionnaire_in_progress", "cancelled"],
+    packet_ready: ["submitted", "submission_failed", "cancelled"],
+    submitted: ["more_info_needed", "approved", "denied", "cancelled"],
+    more_info_needed: ["review_ready", "cancelled"],
+    approved: [],
+    denied: [],
+    cancelled: [],
+    submission_failed: ["packet_ready", "cancelled"]
+  };
+
+  if (!allowed[from].includes(to)) {
+    throw new Error(`Invalid work-item status transition: ${from} -> ${to}`);
+  }
 }

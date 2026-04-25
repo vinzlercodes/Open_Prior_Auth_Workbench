@@ -1,22 +1,21 @@
 # Open Prior Auth Workbench
 
-M3 is a synthetic-data-only prior authorization workbench for MRI lumbar spine prior authorization. It preserves the M1 requirement-discovery sandbox and M2 local DTR-inspired form workspace, then adds a PAS-style local packet builder, mock PAS transport, ClaimResponse-like response Bundle, status timeline, and audit-backed lifecycle transitions.
+M4 is a synthetic-data-only prior authorization workbench for MRI lumbar spine prior authorization. It preserves the M1 requirement-discovery sandbox, M2 local DTR-inspired form workspace, and M3 PAS-style local packet builder, then adds an operations layer for queueing, aging, payer updates, more-info loops, structured denial reasons, and CMS-aligned synthetic metrics.
 
 The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints. They are not implementations of the FHIR `$questionnaire-package` operation, Da Vinci PAS `$submit`, production SMART App Launch, CDS Hooks CRD, or production payer transport.
 
-## What Runs in M3
+## What Runs in M4
 
-- A Next.js web app with the M1 SMART-style launch shim plus an M2 form workspace.
-- A TypeScript API with deterministic requirement evaluation and local DTR-inspired questionnaire packaging.
+- A Next.js web app with a local operations queue, metrics panel, form workspace, packet builder, and mock payer action controls.
+- A TypeScript API with deterministic requirement evaluation, local questionnaire packaging, PAS-style packet build, mock submission, and operations APIs.
 - A checked-in MRI lumbar spine golden scenario with synthetic FHIR R4 seed data.
-- Explicit work-item creation from a stored `evaluationId`.
-- Editable QuestionnaireResponse drafts with FHIR status kept separate from app work-item status.
-- Prefill provenance from Patient, Coverage, ServiceRequest, Condition, and Observation.
-- OperationOutcome-like error responses for local DTR workflow failures.
-- A deterministic PAS-style local packet builder with a FHIR-shaped Bundle, completed QuestionnaireResponse, and local Claim using `Claim.use = "preauthorization"`.
-- A mock PAS transport that returns a response Bundle containing one ClaimResponse-like resource.
-- Status timeline events for work item creation, questionnaire progress, review-ready, packet-ready, and submitted transitions.
-- A work-item scoped audit trail with sequenced `beforeJson` and `afterJson` snapshots for synthetic-data debugging.
+- Explicit separation between internal `WorkItem.status` and payer `PayerUpdate.status`.
+- Queue `effectiveStatus` derived exactly as `latestPayerUpdate.status === "pended" && workItem.status === "submitted" ? "pended" : workItem.status`.
+- Transition-matrix enforcement for internal workflow status changes.
+- First-class operation events for payer status, more-info requests, more-info resolution, assignment, and cancellation.
+- Structured denial reasons with `code`, `display`, `detail`, and `source: "mock-payer"`.
+- Explicit `submittedAt`, `decidedAt`, and `decisionTimeMs` fields for payer-cycle metrics.
+- More-info loops that reopen the evidence workspace, resolve back to `review_ready`, require a fresh packet, and keep stale packet submission blocked.
 
 ## Local Commands
 
@@ -35,6 +34,7 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `GET /context/patient/:id`
 - `POST /requirements/evaluate`
 - `POST /work-items`
+- `GET /work-items?status=submitted,pended&owner=unassigned&sort=age_desc`
 - `GET /work-items/:id`
 - `POST /dtr/package`
 - `POST /dtr/save-response`
@@ -42,32 +42,27 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `POST /pas/submit`
 - `GET /work-items/:id/status`
 - `GET /work-items/:id/audit`
+- `GET /work-items/:id/operations`
+- `POST /work-items/:id/request-more-info`
+- `POST /work-items/:id/record-payer-status`
+- `GET /operations/metrics`
+- `POST /demo/seed-work-items`
 
-`POST /requirements/evaluate` is deterministic and side-effect free with respect to work-item creation. `POST /work-items` references the stored result without recomputing requirements.
+`POST /work-items/:id/record-payer-status` records synthetic mock-payer `pended`, `approved`, `denied`, or `cancelled` updates. Denied updates require a structured denial reason.
 
-`POST /dtr/package` creates or reuses a questionnaire session for a work item and returns a local DTR-like package with Questionnaire, draft QuestionnaireResponse, empty Library/ValueSet dependency arrays, prefill metadata, validation, completion, and local session metadata.
+`POST /work-items/:id/request-more-info` moves a submitted or payer-pended case to `more_info_needed`, records requested items, and leaves the payer update history intact.
 
-`POST /dtr/save-response` requires `revision`, persists incomplete drafts, detects stale saves, and only moves the work item to `review_ready` when validation passes.
+`GET /operations/metrics` returns provider-side queue metrics plus CMS-aligned synthetic metrics such as approval rate, denial rate, pended rate, more-info rate, and average/median submission-to-decision time.
 
-`POST /pas/build-packet` requires a review-ready work item, freezes the work item ID, QuestionnaireResponse ID and revision, payer ID, and packet schema version, then moves the work item to `packet_ready`. The packet has an explicit empty attachment manifest with `attachments: []` and `missingFixtureReason: "No document fixtures in M3"`.
-
-`POST /pas/submit` requires a packet-ready work item and rejects stale packets when the QuestionnaireResponse revision has changed after packet build. Successful mock submission moves the work item to `submitted` and returns a receipt with `transport: "mock-pas"`, a deterministic tracking ID, and a response Bundle containing a ClaimResponse-like resource. Re-submitting an already submitted packet returns the stored receipt with `idempotent: true`.
-
-`GET /work-items/:id/audit` returns sequenced audit events linked to the work item, including questionnaire session, packet, receipt, and work-item status events. Public fields use camelCase, so `beforeJson` and `afterJson` correspond to the strategy report's `before_json` and `after_json` audit-log fields. Full snapshots are acceptable in M3 only because all checked-in data is synthetic; a real-PHI version would need payload minimization and redaction policy.
-
-## Not Implemented in M3
+## Not Implemented in M4
 
 - No production SMART App Launch.
-- No CDS Hooks / CRD endpoint conformance.
+- No real CDS Hooks / CRD endpoint conformance.
 - No real FHIR `$questionnaire-package` operation.
-- No real Da Vinci PAS `$submit` operation.
+- No real Da Vinci PAS `$submit`, PAS inquiry, or payer endpoint discovery.
 - No X12 278 generation or transmission.
-- No CQL execution.
-- No adaptive questionnaire `$next-question`.
-- No production PAS transport.
-- No external payer authentication or endpoint discovery.
-- No payer decisions or adjudication.
-- No subscriptions or durable workflow engine.
+- No durable database, Temporal workflow engine, or Medplum-backed persistence.
+- No real payer decisions; payer updates are synthetic mock-payer events.
 - No real PHI; synthetic fixtures only.
 
 ## Data Posture

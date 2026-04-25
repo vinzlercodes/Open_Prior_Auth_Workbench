@@ -1,53 +1,40 @@
-# M3 PAS-Style Local Packet Builder Tracker
-
-## M3 Audit Trail Gap Plan
-
-- [x] Add shared audit event contract with monotonic sequence, stable event ID, and `beforeJson` / `afterJson` snapshots.
-- [x] Update the in-memory store to capture full resource snapshots and work-item linkage.
-- [x] Add work-item scoped audit API coverage for linked questionnaire, packet, receipt, and work-item events.
-- [x] Add compact web demo audit summary without rendering full JSON payloads.
-- [x] Document synthetic-only full audit snapshot posture.
-- [x] Run `npm test`, `npm run typecheck`, and `npm run build`.
+# M4 Operations Layer Tracker
 
 ## Plan
 
-- [x] Review the strategy report roadmap, M2 implementation, and M3 plan refinements.
-- [x] Extend shared contracts with packet, receipt, status event, and M3 work item statuses.
-- [x] Implement deterministic PAS-style local packet build with `Claim.use = "preauthorization"`.
-- [x] Add mock PAS submission that returns a response Bundle with a ClaimResponse-like resource.
-- [x] Record status events and audit-backed transitions for `review_ready`, `packet_ready`, and `submitted`.
-- [x] Reject stale packet submission when QuestionnaireResponse revision changes after packet build.
-- [x] Add contract tests for packet build, submit, idempotency, stale packets, empty attachment manifest, and timeline fields.
-- [x] Update the web demo with build packet, submit mock PAS, receipt summary, and status timeline.
-- [x] Update README, architecture notes, and demo docs with M3 scope and non-goals.
+- [x] Extend shared contracts with operations statuses, payer updates, denial reasons, queue rows, metrics, and operation events.
+- [x] Add transition-matrix enforcement for internal workflow and payer status updates.
+- [x] Add explicit submittedAt, decidedAt, and decisionTimeMs fields for payer-cycle metrics.
+- [x] Add first-class in-memory operations events without overloading the status timeline.
+- [x] Add queue listing with effectiveStatus derivation, status/owner filters, aging, and stable sorting.
+- [x] Add more-info request, payer-status recording, and work-item operations-history APIs.
+- [x] Preserve packet staleness and idempotency invariants after more-info edits and resubmission.
+- [x] Add contract tests for queue behavior, transition guards, stale packets, resubmission, terminal guards, and metrics.
+- [x] Update the web app into an M4 operations workbench.
+- [x] Update README, demo docs, and architecture notes with M4 scope and non-goals.
 - [x] Run `npm test`, `npm run typecheck`, and `npm run build`.
+- [x] Run local API/web smoke verification.
 
-## M3 Non-goals
+## M4 Non-goals
 
-- No real Da Vinci PAS `$submit`.
+- No production SMART App Launch.
+- No real Da Vinci PAS `$submit`, PAS inquiry, or payer endpoint discovery.
 - No X12 278 generation or transmission.
-- No production PAS transport.
-- No payer authentication or endpoint discovery.
-- No payer decisions or adjudication.
-- No subscriptions or durable workflow engine.
+- No durable database, Temporal workflow engine, or Medplum-backed persistence.
+- No real payer decisions; all payer updates are synthetic mock-payer events.
 - No real PHI; synthetic fixtures only.
-- No document attachments beyond the empty M3 manifest.
 
 ## Review
 
-- M3 audit gap fix adds `GET /work-items/:id/audit` with sequence-ordered events and `beforeJson` / `afterJson` snapshots mapped to the strategy report's `before_json` / `after_json` fields.
-- Audit linkage now returns work-item, questionnaire session, submission packet, and submission receipt events for a work item even when the event resource ID differs from the work item ID.
-- The web demo shows compact audit metadata only: action, actor, resource, time, and before/after capture status.
-- Full audit snapshots are documented as synthetic-data-only; real-PHI usage would require minimization and redaction.
-- `npm test` passed after localhost approval for the route-level audit endpoint test: 28 total tests.
+- M4 adds operations contracts for `PayerUpdate`, `MoreInfoRequest`, `OperationEvent`, queue rows, structured denial reasons, and operations metrics.
+- `WorkItem.status` remains the internal workflow status; payer `pended` is represented only through `PayerUpdate.status`.
+- Queue `effectiveStatus` follows the exact rule: latest payer update is `pended` and internal status is `submitted`, otherwise internal status.
+- Internal workflow transitions are enforced by the in-memory store and covered by matrix tests.
+- Payer decisions record `submittedAt`, `decidedAt`, and `decisionTimeMs`; metrics compute average/median submission-to-decision time plus approval, denial, more-info, and pended rates.
+- More-info requests move submitted cases to `more_info_needed`; a valid questionnaire save resolves the open request and returns the case to `review_ready`.
+- Packet staleness remains enforced by frozen QuestionnaireResponse revision, and revised evidence creates a new packet and receipt.
+- The web app now includes queue filters, metrics, selected-case operations history, mock payer actions, and demo case seeding.
+- `npm test` passed with 38 tests after localhost approval for route-level tests.
 - `npm run typecheck` passed across API, web, and shared-types workspaces.
 - `npm run build` passed across API, web, and shared-types workspaces.
-- Local dev servers started for the audit update: API health check returned `status: ok` at `http://127.0.0.1:4000`, and the web app returned HTTP 200 at `http://127.0.0.1:3001`.
-- `npm test` passed: 24 total tests covering M1 requirements behavior, M2 questionnaire package/session behavior, and M3 packet/submit behavior.
-- `npm run typecheck` passed across API, web, and shared-types workspaces.
-- `npm run build` passed across API, web, and shared-types workspaces.
-- M3 adds PAS-style local `/pas/build-packet` and `/pas/submit` endpoints, not real Da Vinci PAS `$submit` or X12 transport.
-- Successful packet build moves the work item to `packet_ready`; successful mock submit moves it to `submitted`.
-- Mock submission returns a receipt with `transport: "mock-pas"` and a response Bundle containing a ClaimResponse-like resource.
-- Local dev servers started successfully after approval for localhost binding: API health check returned `status: ok`, and the web app returned HTTP 200 at `http://localhost:3001`.
-- Browser demo verification reached submitted status after launch, requirement evaluation, work-item creation, form completion, mark ready, packet build, and mock PAS submit.
+- Local smoke verification passed: API health returned `status: ok`, web returned HTTP 200 on port 3001, demo seeding created cases, and the queue endpoint returned operations rows.

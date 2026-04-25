@@ -81,10 +81,18 @@ export interface WorkItem {
     | "review_ready"
     | "packet_ready"
     | "submitted"
+    | "more_info_needed"
+    | "approved"
+    | "denied"
+    | "cancelled"
     | "submission_failed";
   createdAt: string;
   requirementResult: RequirementEvaluationResult;
 }
+
+export type PayerUpdateStatus = "pended" | "approved" | "denied" | "cancelled";
+
+export type EffectiveOperationsStatus = WorkItem["status"] | "pended";
 
 export interface FhirReference {
   reference?: string;
@@ -342,6 +350,135 @@ export interface SubmissionReceipt {
   transport: "mock-pas";
   idempotent: boolean;
   responseBundle: FhirBundle;
+}
+
+export interface DenialReason {
+  code: string;
+  display: string;
+  detail: string;
+  source: "mock-payer";
+}
+
+export interface PayerUpdate {
+  id: string;
+  workItemId: string;
+  status: PayerUpdateStatus;
+  actor: "user" | "mock-payer" | "system";
+  createdAt: string;
+  submittedAt: string;
+  decidedAt?: string;
+  decisionTimeMs?: number;
+  reason?: DenialReason;
+  message?: string;
+}
+
+export interface MoreInfoRequestedItem {
+  code: string;
+  label: string;
+  required: boolean;
+}
+
+export interface MoreInfoRequest {
+  id: string;
+  workItemId: string;
+  message: string;
+  requestedItems: MoreInfoRequestedItem[];
+  dueAt?: string;
+  requestedAt: string;
+  resolvedAt?: string;
+}
+
+export type OperationEventType =
+  | "payer_status_recorded"
+  | "more_info_requested"
+  | "more_info_resolved"
+  | "case_assigned"
+  | "case_cancelled";
+
+export interface OperationEvent {
+  id: string;
+  workItemId: string;
+  type: OperationEventType;
+  actor: "user" | "mock-payer" | "system";
+  createdAt: string;
+  details: unknown;
+}
+
+export interface WorkItemQueueRow {
+  workItemId: string;
+  patientName: string;
+  payerName: string;
+  serviceDescription: string;
+  ownerUserId: string | null;
+  status: WorkItem["status"];
+  effectiveStatus: EffectiveOperationsStatus;
+  createdAt: string;
+  ageMs: number;
+  lastTransitionAt: string;
+  lastTransitionAgeMs: number;
+  submittedAt?: string;
+  decidedAt?: string;
+  decisionTimeMs?: number;
+  latestPayerUpdate?: PayerUpdate;
+  latestMoreInfoRequest?: MoreInfoRequest;
+  nextAction: string;
+}
+
+export interface WorkItemQueueQuery {
+  status?: string;
+  owner?: string;
+  sort?: "age_desc" | "age_asc" | "updated_desc" | "updated_asc";
+}
+
+export interface OperationsMetrics {
+  generatedAt: string;
+  totalWorkItems: number;
+  openWorkItems: number;
+  terminalWorkItems: number;
+  countsByStatus: Record<string, number>;
+  countsByEffectiveStatus: Record<string, number>;
+  agingBuckets: {
+    under1Hour: number;
+    oneTo24Hours: number;
+    over24Hours: number;
+  };
+  medianTimeToReviewReadyMs: number | null;
+  submittedCount: number;
+  moreInfoCount: number;
+  deniedCount: number;
+  averageSubmissionToDecisionMs: number | null;
+  medianSubmissionToDecisionMs: number | null;
+  approvalRate: number;
+  denialRate: number;
+  moreInfoRate: number;
+  pendedRate: number;
+  standardVsExpeditedBreakdown?: Record<string, {
+    submitted: number;
+    decided: number;
+    averageSubmissionToDecisionMs: number | null;
+    medianSubmissionToDecisionMs: number | null;
+  }>;
+}
+
+export interface PayerStatusRecordRequest {
+  status: PayerUpdateStatus;
+  actor?: "user" | "mock-payer" | "system";
+  reason?: Omit<DenialReason, "source"> & { source?: "mock-payer" };
+  message?: string;
+}
+
+export interface MoreInfoRequestCreateRequest {
+  message: string;
+  requestedItems: MoreInfoRequestedItem[];
+  dueAt?: string;
+  actor?: "user" | "mock-payer" | "system";
+}
+
+export interface WorkItemOperationsHistory {
+  workItemId: string;
+  payerUpdates: PayerUpdate[];
+  moreInfoRequests: MoreInfoRequest[];
+  operationEvents: OperationEvent[];
 }
 
 export interface PacketBuildRequest {
