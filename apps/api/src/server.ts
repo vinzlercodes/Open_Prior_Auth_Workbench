@@ -1,6 +1,8 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import type {
+  PacketBuildRequest,
+  PacketSubmitRequest,
   QuestionnairePackageRequest,
   QuestionnaireResponseSaveRequest,
   RequirementEvaluationRequest,
@@ -11,6 +13,7 @@ import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
 import { QuestionnaireService } from "./questionnaires/questionnaireService.js";
 import { MemoryStore } from "./storage/memoryStore.js";
+import { SubmissionService } from "./submissions/submissionService.js";
 
 export interface ApiDependencies {
   repository?: FixtureFhirRepository;
@@ -44,6 +47,7 @@ async function routeRequest(
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   const questionnaireService = new QuestionnaireService(repository, store);
+  const submissionService = new SubmissionService(repository, store);
 
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
@@ -87,6 +91,29 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/dtr/save-response") {
     const body = await readJson<QuestionnaireResponseSaveRequest>(request);
     sendJson(response, 200, questionnaireService.saveResponse(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/pas/build-packet") {
+    const body = await readJson<PacketBuildRequest>(request);
+    sendJson(response, 200, submissionService.buildPacket(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/pas/submit") {
+    const body = await readJson<PacketSubmitRequest>(request);
+    sendJson(response, 200, submissionService.submitPacket(body));
+    return;
+  }
+
+  const workItemStatusMatch = url.pathname.match(/^\/work-items\/([^/]+)\/status$/);
+  if (request.method === "GET" && workItemStatusMatch) {
+    const workItemId = decodeURIComponent(workItemStatusMatch[1]);
+    if (!store.getWorkItem(workItemId)) {
+      sendJson(response, 404, { error: "Work item not found" });
+      return;
+    }
+    sendJson(response, 200, store.getStatusEvents(workItemId));
     return;
   }
 

@@ -42,7 +42,7 @@ export class QuestionnaireService {
       this.store.saveQuestionnaireSession(session);
     }
 
-    if (workItem.status !== "review_ready") {
+    if (!["review_ready", "packet_ready", "submitted"].includes(workItem.status)) {
       this.store.updateWorkItemStatus(workItem.id, "questionnaire_in_progress");
     }
 

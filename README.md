@@ -1,10 +1,10 @@
 # Open Prior Auth Workbench
 
-M2 is a synthetic-data-only, local DTR-inspired form workspace for MRI lumbar spine prior authorization. It preserves the M1 requirement-discovery sandbox and adds a questionnaire package, editable prefills, draft saving, validation, and review-ready transition.
+M3 is a synthetic-data-only prior authorization workbench for MRI lumbar spine prior authorization. It preserves the M1 requirement-discovery sandbox and M2 local DTR-inspired form workspace, then adds a PAS-style local packet builder, mock PAS transport, ClaimResponse-like response Bundle, status timeline, and audit-backed lifecycle transitions.
 
-The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. They are not implementations of the FHIR `$questionnaire-package` operation, production SMART App Launch, CDS Hooks CRD, or PAS submission.
+The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints. They are not implementations of the FHIR `$questionnaire-package` operation, Da Vinci PAS `$submit`, production SMART App Launch, CDS Hooks CRD, or production payer transport.
 
-## What Runs in M2
+## What Runs in M3
 
 - A Next.js web app with the M1 SMART-style launch shim plus an M2 form workspace.
 - A TypeScript API with deterministic requirement evaluation and local DTR-inspired questionnaire packaging.
@@ -13,6 +13,9 @@ The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. They 
 - Editable QuestionnaireResponse drafts with FHIR status kept separate from app work-item status.
 - Prefill provenance from Patient, Coverage, ServiceRequest, Condition, and Observation.
 - OperationOutcome-like error responses for local DTR workflow failures.
+- A deterministic PAS-style local packet builder with a FHIR-shaped Bundle, completed QuestionnaireResponse, and local Claim using `Claim.use = "preauthorization"`.
+- A mock PAS transport that returns a response Bundle containing one ClaimResponse-like resource.
+- Status timeline events for work item creation, questionnaire progress, review-ready, packet-ready, and submitted transitions.
 
 ## Local Commands
 
@@ -34,6 +37,9 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `GET /work-items/:id`
 - `POST /dtr/package`
 - `POST /dtr/save-response`
+- `POST /pas/build-packet`
+- `POST /pas/submit`
+- `GET /work-items/:id/status`
 
 `POST /requirements/evaluate` is deterministic and side-effect free with respect to work-item creation. `POST /work-items` references the stored result without recomputing requirements.
 
@@ -41,15 +47,23 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 
 `POST /dtr/save-response` requires `revision`, persists incomplete drafts, detects stale saves, and only moves the work item to `review_ready` when validation passes.
 
-## M2 Non-goals
+`POST /pas/build-packet` requires a review-ready work item, freezes the work item ID, QuestionnaireResponse ID and revision, payer ID, and packet schema version, then moves the work item to `packet_ready`. The packet has an explicit empty attachment manifest with `attachments: []` and `missingFixtureReason: "No document fixtures in M3"`.
+
+`POST /pas/submit` requires a packet-ready work item and rejects stale packets when the QuestionnaireResponse revision has changed after packet build. Successful mock submission moves the work item to `submitted` and returns a receipt with `transport: "mock-pas"`, a deterministic tracking ID, and a response Bundle containing a ClaimResponse-like resource. Re-submitting an already submitted packet returns the stored receipt with `idempotent: true`.
+
+## Not Implemented in M3
 
 - No production SMART App Launch.
 - No CDS Hooks / CRD endpoint conformance.
 - No real FHIR `$questionnaire-package` operation.
+- No real Da Vinci PAS `$submit` operation.
+- No X12 278 generation or transmission.
 - No CQL execution.
 - No adaptive questionnaire `$next-question`.
-- No PAS submission.
+- No production PAS transport.
 - No external payer authentication or endpoint discovery.
+- No payer decisions or adjudication.
+- No subscriptions or durable workflow engine.
 - No real PHI; synthetic fixtures only.
 
 ## Data Posture
