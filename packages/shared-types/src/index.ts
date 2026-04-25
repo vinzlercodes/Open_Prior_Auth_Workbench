@@ -78,7 +78,10 @@ export interface WorkItem {
     | "not_required"
     | "needs_baseline_data"
     | "questionnaire_in_progress"
-    | "review_ready";
+    | "review_ready"
+    | "packet_ready"
+    | "submitted"
+    | "submission_failed";
   createdAt: string;
   requirementResult: RequirementEvaluationResult;
 }
@@ -290,4 +293,75 @@ export interface QuestionnaireResponseSaveRequest {
   revision: number;
   actorUserId?: string;
   markReadyForReview?: boolean;
+}
+
+export interface FhirBundle {
+  resourceType: "Bundle";
+  id: string;
+  type: string;
+  timestamp?: string;
+  entry: Array<{
+    fullUrl?: string;
+    resource: {
+      resourceType: string;
+      id?: string;
+      [key: string]: unknown;
+    };
+  }>;
+}
+
+export interface SubmissionPacketSnapshot {
+  workItemId: string;
+  questionnaireResponseId: string;
+  questionnaireResponseRevision: number;
+  payerId: string;
+  packetSchemaVersion: "m3.local-pas-style.v1";
+}
+
+export interface SubmissionAttachmentManifest {
+  attachments: [];
+  missingFixtureReason: "No document fixtures in M3";
+}
+
+export interface SubmissionPacket {
+  id: string;
+  workItemId: string;
+  packetSchemaVersion: "m3.local-pas-style.v1";
+  builtAt: string;
+  transport: "mock-pas";
+  bundle: FhirBundle;
+  attachmentManifest: SubmissionAttachmentManifest;
+  snapshot: SubmissionPacketSnapshot;
+}
+
+export interface SubmissionReceipt {
+  packetId: string;
+  receiptId: string;
+  trackingId: string;
+  submittedAt: string;
+  transport: "mock-pas";
+  idempotent: boolean;
+  responseBundle: FhirBundle;
+}
+
+export interface PacketBuildRequest {
+  workItemId: string;
+  actorUserId?: string;
+}
+
+export interface PacketSubmitRequest {
+  packetId: string;
+  actorUserId?: string;
+}
+
+export interface StatusEvent {
+  eventId: string;
+  workItemId: string;
+  fromStatus: WorkItem["status"] | null;
+  toStatus: WorkItem["status"];
+  actor: string;
+  at: string;
+  causedBy: string;
+  packetId?: string;
+  receiptId?: string;
 }
