@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type {
+  AuditEvent,
   FhirQuestionnaireItem,
   FhirQuestionnaireResponse,
   FhirQuestionnaireResponseAnswer,
@@ -44,6 +45,7 @@ export default function Home() {
   const [submissionPacket, setSubmissionPacket] = useState<SubmissionPacket | null>(null);
   const [submissionReceipt, setSubmissionReceipt] = useState<SubmissionReceipt | null>(null);
   const [statusEvents, setStatusEvents] = useState<StatusEvent[]>([]);
+  const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,6 +79,7 @@ export default function Home() {
     setSubmissionPacket(null);
     setSubmissionReceipt(null);
     setStatusEvents([]);
+    setAuditEvents([]);
     try {
       const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
         method: "POST",
@@ -119,6 +122,7 @@ export default function Home() {
       const created = await response.json() as WorkItem;
       setWorkItem(created);
       await refreshStatus(created.id);
+      await refreshAudit(created.id);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Work item creation failed");
     } finally {
@@ -138,6 +142,7 @@ export default function Home() {
       setFormResponse(clone(pkg.questionnaireResponse));
       setWorkItemStatusFromPackage(pkg, true);
       await refreshStatus(workItem.id);
+      await refreshAudit(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Form package lookup failed"));
     } finally {
@@ -166,6 +171,7 @@ export default function Home() {
       setSubmissionReceipt(null);
       await refreshWorkItem(pkg.workItemId);
       await refreshStatus(pkg.workItemId);
+      await refreshAudit(pkg.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Questionnaire save failed"));
     } finally {
@@ -188,6 +194,7 @@ export default function Home() {
       setSubmissionReceipt(null);
       await refreshWorkItem(workItem.id);
       await refreshStatus(workItem.id);
+      await refreshAudit(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Packet build failed"));
     } finally {
@@ -209,6 +216,7 @@ export default function Home() {
       setSubmissionReceipt(receipt);
       await refreshWorkItem(submissionPacket.workItemId);
       await refreshStatus(submissionPacket.workItemId);
+      await refreshAudit(submissionPacket.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Mock PAS submission failed"));
     } finally {
@@ -252,6 +260,10 @@ export default function Home() {
 
   async function refreshStatus(workItemId: string) {
     setStatusEvents(await getJson<StatusEvent[]>(`/work-items/${workItemId}/status`));
+  }
+
+  async function refreshAudit(workItemId: string) {
+    setAuditEvents(await getJson<AuditEvent[]>(`/work-items/${workItemId}/audit`));
   }
 
   return (
@@ -374,6 +386,7 @@ export default function Home() {
           packet={submissionPacket}
           receipt={submissionReceipt}
           events={statusEvents}
+          auditEvents={auditEvents}
         />
 
         <QuestionnaireWorkspace
@@ -392,11 +405,13 @@ export default function Home() {
 function SubmissionPanel({
   packet,
   receipt,
-  events
+  events,
+  auditEvents
 }: {
   packet: SubmissionPacket | null;
   receipt: SubmissionReceipt | null;
   events: StatusEvent[];
+  auditEvents: AuditEvent[];
 }) {
   const claim = packet?.bundle.entry.find((entry) => entry.resource.resourceType === "Claim")?.resource;
   const claimResponse = receipt?.responseBundle.entry.find((entry) => entry.resource.resourceType === "ClaimResponse")?.resource;
@@ -442,6 +457,20 @@ function SubmissionPanel({
           </div>
         )) : (
           <p className="muted">Create a work item to start the lifecycle timeline.</p>
+        )}
+      </div>
+
+      <div className="auditTrail">
+        <p className="eyebrow">Audit trail</p>
+        {auditEvents.length > 0 ? auditEvents.map((event) => (
+          <div className="auditEvent" key={event.eventId}>
+            <strong>{event.action}</strong>
+            <span>{event.actor} - {event.resourceType}/{event.resourceId}</span>
+            <small>{formatAuditTime(event.timestamp)}</small>
+            <em>{event.beforeJson === null ? "Before empty" : "Before captured"} / {event.afterJson === null ? "After empty" : "After captured"}</em>
+          </div>
+        )) : (
+          <p className="muted">Audit entries appear after a work item changes state.</p>
         )}
       </div>
     </section>
@@ -746,6 +775,14 @@ function formatCaught(caught: unknown, fallback: string): string {
     return outcome.issue?.[0]?.diagnostics ?? fallback;
   }
   return caught instanceof Error ? caught.message : fallback;
+}
+
+function formatAuditTime(timestamp: string): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
 }
 
 function clone<T>(value: T): T {

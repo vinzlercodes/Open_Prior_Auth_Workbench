@@ -16,6 +16,7 @@ The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `
 - A deterministic PAS-style local packet builder with a FHIR-shaped Bundle, completed QuestionnaireResponse, and local Claim using `Claim.use = "preauthorization"`.
 - A mock PAS transport that returns a response Bundle containing one ClaimResponse-like resource.
 - Status timeline events for work item creation, questionnaire progress, review-ready, packet-ready, and submitted transitions.
+- A work-item scoped audit trail with sequenced `beforeJson` and `afterJson` snapshots for synthetic-data debugging.
 
 ## Local Commands
 
@@ -40,6 +41,7 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `POST /pas/build-packet`
 - `POST /pas/submit`
 - `GET /work-items/:id/status`
+- `GET /work-items/:id/audit`
 
 `POST /requirements/evaluate` is deterministic and side-effect free with respect to work-item creation. `POST /work-items` references the stored result without recomputing requirements.
 
@@ -50,6 +52,8 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 `POST /pas/build-packet` requires a review-ready work item, freezes the work item ID, QuestionnaireResponse ID and revision, payer ID, and packet schema version, then moves the work item to `packet_ready`. The packet has an explicit empty attachment manifest with `attachments: []` and `missingFixtureReason: "No document fixtures in M3"`.
 
 `POST /pas/submit` requires a packet-ready work item and rejects stale packets when the QuestionnaireResponse revision has changed after packet build. Successful mock submission moves the work item to `submitted` and returns a receipt with `transport: "mock-pas"`, a deterministic tracking ID, and a response Bundle containing a ClaimResponse-like resource. Re-submitting an already submitted packet returns the stored receipt with `idempotent: true`.
+
+`GET /work-items/:id/audit` returns sequenced audit events linked to the work item, including questionnaire session, packet, receipt, and work-item status events. Public fields use camelCase, so `beforeJson` and `afterJson` correspond to the strategy report's `before_json` and `after_json` audit-log fields. Full snapshots are acceptable in M3 only because all checked-in data is synthetic; a real-PHI version would need payload minimization and redaction policy.
 
 ## Not Implemented in M3
 

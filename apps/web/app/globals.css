@@ -234,9 +234,28 @@ h2 {
   padding-top: 14px;
 }
 
+.auditTrail {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 14px;
+}
+
 .timelineEvent {
   display: grid;
   gap: 3px;
+  border: 1px solid #e3e9e6;
+  border-radius: 8px;
+  background: #fafbfb;
+  padding: 10px 12px;
+}
+
+.auditEvent {
+  display: grid;
+  grid-template-columns: minmax(140px, 1.1fr) minmax(180px, 1.4fr) minmax(90px, 0.7fr) minmax(150px, 1fr);
+  gap: 8px;
+  align-items: center;
   border: 1px solid #e3e9e6;
   border-radius: 8px;
   background: #fafbfb;
@@ -248,12 +267,38 @@ h2 {
   font-size: 14px;
 }
 
+.auditEvent strong {
+  overflow-wrap: anywhere;
+  color: #17201c;
+  font-size: 13px;
+}
+
 .timelineEvent span,
 .timelineEvent small {
   overflow-wrap: anywhere;
   color: #5b6862;
   font-size: 12px;
   line-height: 1.35;
+}
+
+.auditEvent span,
+.auditEvent small {
+  overflow-wrap: anywhere;
+  color: #5b6862;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.auditEvent em {
+  justify-self: end;
+  border-radius: 999px;
+  background: #eef4f2;
+  padding: 5px 8px;
+  color: #50615a;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .error {
@@ -413,6 +458,15 @@ h2 {
   .resultGrid,
   .receiptBox {
     grid-template-columns: 1fr;
+  }
+
+  .auditEvent {
+    grid-template-columns: 1fr;
+  }
+
+  .auditEvent em {
+    justify-self: start;
+    white-space: normal;
   }
 
   .formHeader,
