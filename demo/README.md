@@ -1,6 +1,6 @@
-# M3 Demo: MRI Lumbar Spine PAS-Style Local Submission
+# M4 Demo: Operations Queue and Mock Payer Loop
 
-This demo verifies the M3 implementation of Open Prior Auth Workbench using only synthetic data. It shows the M1 requirement-discovery flow, the M2 local DTR-inspired questionnaire package, and the M3 PAS-style local packet builder with mock PAS submission.
+This demo verifies the M4 implementation of Open Prior Auth Workbench using only synthetic data. It shows the M1 requirement-discovery flow, M2 questionnaire workspace, M3 PAS-style packet builder, and M4 operations layer.
 
 ## Demo Data
 
@@ -8,7 +8,6 @@ This demo verifies the M3 implementation of Open Prior Auth Workbench using only
 - Synthetic FHIR bundle: `data/seed/mri_lumbar_spine_golden/fhir-bundle.json`
 - Payer rule pack: `data/payer-rules/mri-lumbar-spine.acme-health.v1.json`
 - Questionnaire fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`
-- Missing-evidence scenario for tests: `data/seed/mri_lumbar_spine_missing_evidence/fhir-bundle.json`
 
 No real PHI is required or expected.
 
@@ -38,146 +37,63 @@ Open:
 http://localhost:3000
 ```
 
-The API defaults to:
-
-```text
-http://127.0.0.1:4000
-```
-
 ## UI Reproduction Steps
 
-1. Click `Launch shim`.
-2. Confirm the patient/order context loads for Elena Rivera.
-3. Click `Evaluate requirements`.
-4. Confirm the result shows `requirements found` and evaluation ID `eval-8a673eae6c28942c`.
-5. Click `Create work item`.
-6. Confirm the queue shell shows work item `wi-8a673eae6c28`.
-7. Click `Open form workspace`.
-8. Confirm the form shows prefilled Patient, Coverage, ServiceRequest, Condition, and Observation fields.
-9. Change a prefilled value and confirm the field shows an edited state after saving.
-10. Try `Mark ready` before completing required fields and confirm validation blocks review-ready status.
-11. Select `Routine` for clinical urgency and `No` for prior lumbar spine surgery.
-12. Click `Mark ready` and confirm work item status becomes `review ready` while QuestionnaireResponse status becomes `completed`.
-13. Click `Build packet`.
-14. Confirm the PAS-style local packet panel shows a packet ID, `preauthorization` Claim use, an empty attachment manifest, and work item status `packet ready`.
-15. Click `Submit mock PAS`.
-16. Confirm the receipt shows a mock tracking ID, a ClaimResponse-like resource, and work item status `submitted`.
-17. Confirm the status timeline includes `review ready -> packet ready -> submitted`.
+1. Click `Seed demo cases` and confirm the operations queue shows multiple synthetic cases.
+2. Select a queue row and confirm the selected case details, metrics, operations history, status timeline, and audit trail update.
+3. Click `Launch shim`, `Evaluate requirements`, and `Create work item` to run the original single-case flow.
+4. Open the form workspace, complete required fields, and click `Mark ready`.
+5. Click `Build packet` and confirm the packet shows `preauthorization` Claim use.
+6. Click `Submit mock PAS` and confirm the work item status becomes `submitted`.
+7. Click `Mark pended` and confirm the queue shows effective status `pended` while the selected case internal status remains `submitted`.
+8. Click `Request more info` and confirm the case moves to `more info needed`.
+9. Reopen the form workspace, revise evidence, and click `Mark ready`.
+10. Build and submit again; the new packet and receipt should differ from the original packet and receipt.
+11. Click `Approve`, `Deny`, or `Cancel case` on a submitted case to exercise terminal payer outcomes.
+12. For denial, confirm the selected operations history shows a structured denial reason.
 
 ## API Reproduction Steps
 
-Health check:
+Read the operations queue:
 
 ```bash
-curl -s http://127.0.0.1:4000/health
+curl -s 'http://127.0.0.1:4000/work-items?status=submitted,pended&owner=unassigned&sort=age_desc'
 ```
 
-Evaluate the golden MRI lumbar spine scenario:
+Read operations metrics:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/requirements/evaluate \
+curl -s http://127.0.0.1:4000/operations/metrics
+```
+
+Record a payer-pended update:
+
+```bash
+curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/record-payer-status \
   -H 'Content-Type: application/json' \
-  -d '{"patientId":"patient-mri-001","coverageId":"coverage-acme-001","requestResourceType":"ServiceRequest","requestResourceId":"servicerequest-mri-lumbar-001","serviceLine":"mri_lumbar_spine","payerId":"acme-health"}'
+  -d '{"status":"pended","actor":"mock-payer","message":"Pending nurse review."}'
 ```
 
-Create a work item from the stored evaluation result:
+Request more information:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/work-items \
+curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/request-more-info \
   -H 'Content-Type: application/json' \
-  -d '{"evaluationId":"eval-8a673eae6c28942c","ownerUserId":"demo-operator"}'
+  -d '{"message":"Please provide conservative therapy details.","requestedItems":[{"code":"conservative-therapy-duration","label":"Duration of conservative therapy","required":true}],"dueAt":"2026-05-02T00:00:00.000Z"}'
 ```
 
-Open the local DTR-like package:
+Record a structured denial:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/dtr/package \
+curl -s -X POST http://127.0.0.1:4000/work-items/wi-8a673eae6c28/record-payer-status \
   -H 'Content-Type: application/json' \
-  -d '{"workItemId":"wi-8a673eae6c28"}'
+  -d '{"status":"denied","actor":"mock-payer","reason":{"code":"insufficient-documentation","display":"Insufficient documentation","detail":"Conservative therapy duration was not documented."}}'
 ```
 
-Expected highlights:
-
-```json
-{
-  "questionnaireCanonical": "http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04",
-  "questionnaireVersion": "2026.04",
-  "dependencies": {
-    "libraries": [],
-    "valueSets": []
-  },
-  "questionnaireResponse": {
-    "status": "in-progress",
-    "subject": {
-      "reference": "Patient/patient-mri-001"
-    },
-    "basedOn": [
-      {
-        "reference": "ServiceRequest/servicerequest-mri-lumbar-001"
-      }
-    ]
-  }
-}
-```
-
-Save calls to `/dtr/save-response` must include the current `session.revision` returned by `/dtr/package`.
-
-Build a PAS-style local packet after marking the questionnaire ready:
+Read per-case operations history:
 
 ```bash
-curl -s -X POST http://127.0.0.1:4000/pas/build-packet \
-  -H 'Content-Type: application/json' \
-  -d '{"workItemId":"wi-8a673eae6c28","actorUserId":"demo-operator"}'
-```
-
-Expected highlights:
-
-```json
-{
-  "transport": "mock-pas",
-  "packetSchemaVersion": "m3.local-pas-style.v1",
-  "attachmentManifest": {
-    "attachments": [],
-    "missingFixtureReason": "No document fixtures in M3"
-  },
-  "snapshot": {
-    "payerId": "acme-health"
-  }
-}
-```
-
-Submit the packet through the mock PAS transport:
-
-```bash
-curl -s -X POST http://127.0.0.1:4000/pas/submit \
-  -H 'Content-Type: application/json' \
-  -d '{"packetId":"<packet-id-from-build>","actorUserId":"demo-operator"}'
-```
-
-Expected highlights:
-
-```json
-{
-  "transport": "mock-pas",
-  "idempotent": false,
-  "responseBundle": {
-    "resourceType": "Bundle",
-    "entry": [
-      {
-        "resource": {
-          "resourceType": "ClaimResponse",
-          "use": "preauthorization"
-        }
-      }
-    ]
-  }
-}
-```
-
-Read the status timeline:
-
-```bash
-curl -s http://127.0.0.1:4000/work-items/wi-8a673eae6c28/status
+curl -s http://127.0.0.1:4000/work-items/wi-8a673eae6c28/operations
 ```
 
 ## Verification Commands
@@ -190,18 +106,15 @@ npm run build
 
 Expected results:
 
-- `npm test`: M1, M2, and M3 contract tests pass.
-- `GET /work-items/:id/audit`: returns sequenced audit events with `beforeJson` and `afterJson` snapshots for work-item, questionnaire, packet, and receipt changes.
-- `npm run typecheck`: API, web, and shared-types workspaces pass.
-- `npm run build`: API, web, and shared-types workspaces build successfully.
+- `npm test`: M1, M2, M3, and M4 contract tests pass.
+- Queue rows derive `effectiveStatus` exactly from latest payer update plus internal work-item status.
+- Payer decisions include `submittedAt`, `decidedAt`, and `decisionTimeMs`.
+- Stale packets are rejected after QuestionnaireResponse revision changes.
+- Terminal approved, denied, and cancelled cases reject further more-info and payer-update attempts.
 
-## M3 Caveats
+## M4 Caveats
 
+- Operations metrics are synthetic local metrics, not payer reporting outputs.
+- Payer updates are mock-payer events, not real PAS responses or inquiry results.
+- The operations queue is in-memory and resets when the API process restarts.
 - Audit snapshots include full synthetic local resources for demo/debug visibility. Real-PHI deployments would need payload minimization and redaction before durable audit storage.
-
-- This is local DTR-inspired behavior, not a real FHIR `$questionnaire-package` implementation.
-- This is a PAS-style local packet and mock transport, not real Da Vinci PAS `$submit`.
-- No X12 278, production PAS transport, payer authentication, endpoint discovery, subscriptions, or payer decisions are implemented.
-- The launch flow remains a SMART-style shim, not production SMART App Launch.
-- The FHIR adapter remains fixture-backed while preserving the Medplum-oriented boundary.
-- Attachments are represented by an intentionally empty manifest until document fixtures are added.
