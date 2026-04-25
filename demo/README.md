@@ -1,6 +1,6 @@
-# M2 Demo: MRI Lumbar Spine Form Workspace
+# M3 Demo: MRI Lumbar Spine PAS-Style Local Submission
 
-This demo verifies the M2 implementation of Open Prior Auth Workbench using only synthetic data. It shows the M1 requirement-discovery flow plus the local DTR-inspired questionnaire package, editable prefills, validation, draft save, and review-ready transition.
+This demo verifies the M3 implementation of Open Prior Auth Workbench using only synthetic data. It shows the M1 requirement-discovery flow, the M2 local DTR-inspired questionnaire package, and the M3 PAS-style local packet builder with mock PAS submission.
 
 ## Demo Data
 
@@ -58,6 +58,11 @@ http://127.0.0.1:4000
 10. Try `Mark ready` before completing required fields and confirm validation blocks review-ready status.
 11. Select `Routine` for clinical urgency and `No` for prior lumbar spine surgery.
 12. Click `Mark ready` and confirm work item status becomes `review ready` while QuestionnaireResponse status becomes `completed`.
+13. Click `Build packet`.
+14. Confirm the PAS-style local packet panel shows a packet ID, `preauthorization` Claim use, an empty attachment manifest, and work item status `packet ready`.
+15. Click `Submit mock PAS`.
+16. Confirm the receipt shows a mock tracking ID, a ClaimResponse-like resource, and work item status `submitted`.
+17. Confirm the status timeline includes `review ready -> packet ready -> submitted`.
 
 ## API Reproduction Steps
 
@@ -117,6 +122,64 @@ Expected highlights:
 
 Save calls to `/dtr/save-response` must include the current `session.revision` returned by `/dtr/package`.
 
+Build a PAS-style local packet after marking the questionnaire ready:
+
+```bash
+curl -s -X POST http://127.0.0.1:4000/pas/build-packet \
+  -H 'Content-Type: application/json' \
+  -d '{"workItemId":"wi-8a673eae6c28","actorUserId":"demo-operator"}'
+```
+
+Expected highlights:
+
+```json
+{
+  "transport": "mock-pas",
+  "packetSchemaVersion": "m3.local-pas-style.v1",
+  "attachmentManifest": {
+    "attachments": [],
+    "missingFixtureReason": "No document fixtures in M3"
+  },
+  "snapshot": {
+    "payerId": "acme-health"
+  }
+}
+```
+
+Submit the packet through the mock PAS transport:
+
+```bash
+curl -s -X POST http://127.0.0.1:4000/pas/submit \
+  -H 'Content-Type: application/json' \
+  -d '{"packetId":"<packet-id-from-build>","actorUserId":"demo-operator"}'
+```
+
+Expected highlights:
+
+```json
+{
+  "transport": "mock-pas",
+  "idempotent": false,
+  "responseBundle": {
+    "resourceType": "Bundle",
+    "entry": [
+      {
+        "resource": {
+          "resourceType": "ClaimResponse",
+          "use": "preauthorization"
+        }
+      }
+    ]
+  }
+}
+```
+
+Read the status timeline:
+
+```bash
+curl -s http://127.0.0.1:4000/work-items/wi-8a673eae6c28/status
+```
+
 ## Verification Commands
 
 ```bash
@@ -127,13 +190,15 @@ npm run build
 
 Expected results:
 
-- `npm test`: M1 and M2 contract tests pass.
+- `npm test`: M1, M2, and M3 contract tests pass.
 - `npm run typecheck`: API, web, and shared-types workspaces pass.
 - `npm run build`: API, web, and shared-types workspaces build successfully.
 
-## M2 Caveats
+## M3 Caveats
 
 - This is local DTR-inspired behavior, not a real FHIR `$questionnaire-package` implementation.
+- This is a PAS-style local packet and mock transport, not real Da Vinci PAS `$submit`.
+- No X12 278, production PAS transport, payer authentication, endpoint discovery, subscriptions, or payer decisions are implemented.
 - The launch flow remains a SMART-style shim, not production SMART App Launch.
-- The FHIR adapter remains fixture-backed for M2 while preserving the Medplum-oriented boundary.
-- PAS packet building and submission are reserved for M3.
+- The FHIR adapter remains fixture-backed while preserving the Medplum-oriented boundary.
+- Attachments are represented by an intentionally empty manifest until document fixtures are added.
