@@ -10,26 +10,27 @@ import type {
   RequirementEvaluationRequest,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
+import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
 import { OperationOutcomeError } from "./errors.js";
 import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
 import { OperationsService } from "./operations/operationsService.js";
-import { QuestionnaireService } from "./questionnaires/questionnaireService.js";
-import { MemoryStore } from "./storage/memoryStore.js";
-import { SubmissionService } from "./submissions/submissionService.js";
+import { type PriorAuthStore } from "./storage/priorAuthStore.js";
+import { SqliteStore } from "./storage/sqliteStore.js";
 
 export interface ApiDependencies {
   repository?: FixtureFhirRepository;
-  store?: MemoryStore;
+  store?: PriorAuthStore;
 }
 
 export function createServer(dependencies: ApiDependencies = {}) {
   const repository = dependencies.repository ?? new FixtureFhirRepository();
-  const store = dependencies.store ?? new MemoryStore();
+  const store = dependencies.store ?? new SqliteStore();
+  const adapters = createLocalStandardsAdapters(repository, store);
 
   return createHttpServer(async (request, response) => {
     try {
-      await routeRequest(request, response, repository, store);
+      await routeRequest(request, response, repository, store, adapters);
     } catch (error) {
       if (error instanceof OperationOutcomeError) {
         sendJson(response, error.statusCode, error.outcome);
@@ -46,11 +47,10 @@ async function routeRequest(
   request: IncomingMessage,
   response: ServerResponse,
   repository: FixtureFhirRepository,
-  store: MemoryStore
+  store: PriorAuthStore,
+  adapters: LocalStandardsAdapters
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
-  const questionnaireService = new QuestionnaireService(repository, store);
-  const submissionService = new SubmissionService(repository, store);
   const operationsService = new OperationsService(store);
 
   if (request.method === "OPTIONS") {
@@ -69,14 +69,13 @@ async function routeRequest(
 
   const contextMatch = url.pathname.match(/^\/context\/patient\/([^/]+)$/);
   if (request.method === "GET" && contextMatch) {
-    sendJson(response, 200, repository.getPatientContext(decodeURIComponent(contextMatch[1])));
+    sendJson(response, 200, adapters.launch.getPatientContext(decodeURIComponent(contextMatch[1])));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/requirements/evaluate") {
     const body = await readJson<RequirementEvaluationRequest>(request);
-    const result = evaluateRequirement(body, repository);
-    sendJson(response, 200, store.saveEvaluation(body, result));
+    sendJson(response, 200, adapters.crd.evaluate(body));
     return;
   }
 
@@ -130,25 +129,25 @@ async function routeRequest(
 
   if (request.method === "POST" && url.pathname === "/dtr/package") {
     const body = await readJson<QuestionnairePackageRequest>(request);
-    sendJson(response, 200, questionnaireService.getPackage(body.workItemId));
+    sendJson(response, 200, adapters.dtr.getPackage(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/dtr/save-response") {
     const body = await readJson<QuestionnaireResponseSaveRequest>(request);
-    sendJson(response, 200, questionnaireService.saveResponse(body));
+    sendJson(response, 200, adapters.dtr.saveResponse(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/build-packet") {
     const body = await readJson<PacketBuildRequest>(request);
-    sendJson(response, 200, submissionService.buildPacket(body));
+    sendJson(response, 200, adapters.pas.buildPacket(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/submit") {
     const body = await readJson<PacketSubmitRequest>(request);
-    sendJson(response, 200, submissionService.submitPacket(body));
+    sendJson(response, 200, adapters.pas.submitPacket(body));
     return;
   }
 

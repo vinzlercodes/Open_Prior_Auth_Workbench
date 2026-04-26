@@ -12,12 +12,12 @@ import type {
   WorkItemQueueRow
 } from "@open-prior-auth/shared-types";
 import { OperationOutcomeError } from "../errors.js";
-import { type MemoryStore } from "../storage/memoryStore.js";
+import { type PriorAuthStore } from "../storage/priorAuthStore.js";
 
 const TERMINAL_STATUSES: WorkItem["status"][] = ["approved", "denied", "cancelled", "not_required"];
 
 export class OperationsService {
-  constructor(private readonly store: MemoryStore) {}
+  constructor(private readonly store: PriorAuthStore) {}
 
   listQueue(query: WorkItemQueueQuery = {}): WorkItemQueueRow[] {
     const statusFilter = parseCsv(query.status);
@@ -95,86 +95,90 @@ export class OperationsService {
   }
 
   requestMoreInfo(workItemId: string, input: MoreInfoRequestCreateRequest): MoreInfoRequest {
-    const workItem = this.requireWorkItem(workItemId);
-    if (TERMINAL_STATUSES.includes(workItem.status)) {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} is terminal and cannot receive a more-info request. Current status: ${workItem.status}.`
-      );
-    }
-    if (workItem.status !== "submitted") {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} must be submitted or payer-pended before requesting more information. Current status: ${workItem.status}.`
-      );
-    }
-    if (!input.message || !Array.isArray(input.requestedItems) || input.requestedItems.length === 0) {
-      throw new OperationOutcomeError(400, "required", "message and at least one requested item are required.");
-    }
+    return this.store.transaction(() => {
+      const workItem = this.requireWorkItem(workItemId);
+      if (TERMINAL_STATUSES.includes(workItem.status)) {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} is terminal and cannot receive a more-info request. Current status: ${workItem.status}.`
+        );
+      }
+      if (workItem.status !== "submitted") {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} must be submitted or payer-pended before requesting more information. Current status: ${workItem.status}.`
+        );
+      }
+      if (!input.message || !Array.isArray(input.requestedItems) || input.requestedItems.length === 0) {
+        throw new OperationOutcomeError(400, "required", "message and at least one requested item are required.");
+      }
 
-    const request = this.store.saveMoreInfoRequest({
-      workItemId,
-      message: input.message,
-      requestedItems: input.requestedItems,
-      dueAt: input.dueAt
+      const request = this.store.saveMoreInfoRequest({
+        workItemId,
+        message: input.message,
+        requestedItems: input.requestedItems,
+        dueAt: input.dueAt
+      });
+      this.store.updateWorkItemStatus(workItemId, "more_info_needed", input.actor ?? "mock-payer", "more_info.requested");
+      this.store.recordOperationEvent(workItemId, "more_info_requested", input.actor ?? "mock-payer", request);
+      return request;
     });
-    this.store.updateWorkItemStatus(workItemId, "more_info_needed", input.actor ?? "mock-payer", "more_info.requested");
-    this.store.recordOperationEvent(workItemId, "more_info_requested", input.actor ?? "mock-payer", request);
-    return request;
   }
 
   recordPayerStatus(workItemId: string, input: PayerStatusRecordRequest): PayerUpdate {
-    const workItem = this.requireWorkItem(workItemId);
-    const actor = input.actor ?? "mock-payer";
-    if (TERMINAL_STATUSES.includes(workItem.status)) {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} is terminal and cannot accept payer updates. Current status: ${workItem.status}.`
-      );
-    }
-    if (workItem.status !== "submitted") {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} must be submitted before recording payer status. Current status: ${workItem.status}.`
-      );
-    }
-    if (input.status === "denied" && !input.reason) {
-      throw new OperationOutcomeError(400, "required", "A structured denial reason is required for denied payer updates.");
-    }
-
-    const receipt = this.store.getLatestSubmissionReceiptForWorkItem(workItemId);
-    if (!receipt) {
-      throw new OperationOutcomeError(409, "conflict", `Work item ${workItem.id} has no submitted packet receipt.`);
-    }
-
-    const createdAt = this.store.nowIso();
-    const decidedAt = input.status === "pended" ? undefined : createdAt;
-    const submittedAt = receipt.submittedAt;
-    const update = this.store.savePayerUpdate({
-      workItemId,
-      status: input.status,
-      actor,
-      createdAt,
-      submittedAt,
-      decidedAt,
-      decisionTimeMs: decidedAt ? Date.parse(decidedAt) - Date.parse(submittedAt) : undefined,
-      reason: input.reason ? normalizeDenialReason(input.reason) : undefined,
-      message: input.message
-    });
-
-    this.store.recordOperationEvent(workItemId, "payer_status_recorded", actor, update);
-    if (input.status !== "pended") {
-      this.store.updateWorkItemStatus(workItemId, input.status, actor, `payer_status.${input.status}`);
-      if (input.status === "cancelled") {
-        this.store.recordOperationEvent(workItemId, "case_cancelled", actor, update);
+    return this.store.transaction(() => {
+      const workItem = this.requireWorkItem(workItemId);
+      const actor = input.actor ?? "mock-payer";
+      if (TERMINAL_STATUSES.includes(workItem.status)) {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} is terminal and cannot accept payer updates. Current status: ${workItem.status}.`
+        );
       }
-    }
+      if (workItem.status !== "submitted") {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} must be submitted before recording payer status. Current status: ${workItem.status}.`
+        );
+      }
+      if (input.status === "denied" && !input.reason) {
+        throw new OperationOutcomeError(400, "required", "A structured denial reason is required for denied payer updates.");
+      }
 
-    return update;
+      const receipt = this.store.getLatestSubmissionReceiptForWorkItem(workItemId);
+      if (!receipt) {
+        throw new OperationOutcomeError(409, "conflict", `Work item ${workItem.id} has no submitted packet receipt.`);
+      }
+
+      const createdAt = this.store.nowIso();
+      const decidedAt = input.status === "pended" ? undefined : createdAt;
+      const submittedAt = receipt.submittedAt;
+      const update = this.store.savePayerUpdate({
+        workItemId,
+        status: input.status,
+        actor,
+        createdAt,
+        submittedAt,
+        decidedAt,
+        decisionTimeMs: decidedAt ? Date.parse(decidedAt) - Date.parse(submittedAt) : undefined,
+        reason: input.reason ? normalizeDenialReason(input.reason) : undefined,
+        message: input.message
+      });
+
+      this.store.recordOperationEvent(workItemId, "payer_status_recorded", actor, update);
+      if (input.status !== "pended") {
+        this.store.updateWorkItemStatus(workItemId, input.status, actor, `payer_status.${input.status}`);
+        if (input.status === "cancelled") {
+          this.store.recordOperationEvent(workItemId, "case_cancelled", actor, update);
+        }
+      }
+
+      return update;
+    });
   }
 
   private toQueueRow(workItem: WorkItem): WorkItemQueueRow {
@@ -331,7 +335,7 @@ function nextActionFor(status: EffectiveOperationsStatus): string {
   return byStatus[status];
 }
 
-function clinicalUrgencyFor(store: MemoryStore, workItemId: string): string | null {
+function clinicalUrgencyFor(store: PriorAuthStore, workItemId: string): string | null {
   const session = store.getQuestionnaireSessionsForWorkItem(workItemId).at(-1);
   const item = session?.questionnaireResponse.item.find((candidate) => candidate.linkId === "clinical-urgency");
   return item?.answer?.[0]?.valueCoding?.code ?? null;
