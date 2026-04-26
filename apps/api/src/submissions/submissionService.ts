@@ -11,88 +11,92 @@ import type {
 import { OperationOutcomeError } from "../errors.js";
 import { evaluationHash } from "../evaluation/hash.js";
 import { type FhirResource, type FixtureFhirRepository } from "../fhir/fixtureRepository.js";
-import { type MemoryStore } from "../storage/memoryStore.js";
+import { type PriorAuthStore } from "../storage/priorAuthStore.js";
 
 const PACKET_SCHEMA_VERSION = "m3.local-pas-style.v1" as const;
 
 export class SubmissionService {
   constructor(
     private readonly repository: FixtureFhirRepository,
-    private readonly store: MemoryStore
+    private readonly store: PriorAuthStore
   ) {}
 
   buildPacket(input: PacketBuildRequest): SubmissionPacket {
-    const actor = input.actorUserId ?? "system";
-    const workItem = this.requireWorkItem(input.workItemId);
+    return this.store.transaction(() => {
+      const actor = input.actorUserId ?? "system";
+      const workItem = this.requireWorkItem(input.workItemId);
 
-    if (workItem.status !== "review_ready" && workItem.status !== "packet_ready") {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} must be review_ready before building a PAS-style local packet. Current status: ${workItem.status}.`
-      );
-    }
-
-    const session = this.requireReviewReadySession(workItem);
-    const snapshot = buildSnapshot(workItem, session);
-    const existing = this.store.findSubmissionPacketBySnapshot(snapshot);
-    if (existing) {
-      if (workItem.status === "review_ready") {
-        this.store.updateWorkItemStatus(workItem.id, "packet_ready", actor, "submission_packet.reused", existing.id);
+      if (workItem.status !== "review_ready" && workItem.status !== "packet_ready") {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} must be review_ready before building a PAS-style local packet. Current status: ${workItem.status}.`
+        );
       }
-      return existing;
-    }
 
-    const packet = this.createPacket(workItem, session, snapshot);
-    this.store.saveSubmissionPacket(packet, actor);
-    this.store.updateWorkItemStatus(workItem.id, "packet_ready", actor, "submission_packet.built", packet.id);
-    return packet;
+      const session = this.requireReviewReadySession(workItem);
+      const snapshot = buildSnapshot(workItem, session);
+      const existing = this.store.findSubmissionPacketBySnapshot(snapshot);
+      if (existing) {
+        if (workItem.status === "review_ready") {
+          this.store.updateWorkItemStatus(workItem.id, "packet_ready", actor, "submission_packet.reused", existing.id);
+        }
+        return existing;
+      }
+
+      const packet = this.createPacket(workItem, session, snapshot);
+      this.store.saveSubmissionPacket(packet, actor);
+      this.store.updateWorkItemStatus(workItem.id, "packet_ready", actor, "submission_packet.built", packet.id);
+      return packet;
+    });
   }
 
   submitPacket(input: PacketSubmitRequest): SubmissionReceipt {
-    const actor = input.actorUserId ?? "system";
-    const packet = this.store.getSubmissionPacket(input.packetId);
-    if (!packet) {
-      throw new OperationOutcomeError(404, "not-found", `Submission packet not found: ${input.packetId}`);
-    }
+    return this.store.transaction(() => {
+      const actor = input.actorUserId ?? "system";
+      const packet = this.store.getSubmissionPacket(input.packetId);
+      if (!packet) {
+        throw new OperationOutcomeError(404, "not-found", `Submission packet not found: ${input.packetId}`);
+      }
 
-    const workItem = this.requireWorkItem(packet.workItemId);
-    const currentSession = this.requireReviewReadySession(workItem);
-    if (currentSession.revision !== packet.snapshot.questionnaireResponseRevision) {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Submission packet ${packet.id} is stale because QuestionnaireResponse revision ${currentSession.revision} no longer matches packet revision ${packet.snapshot.questionnaireResponseRevision}. Rebuild before submitting.`
+      const workItem = this.requireWorkItem(packet.workItemId);
+      const currentSession = this.requireReviewReadySession(workItem);
+      if (currentSession.revision !== packet.snapshot.questionnaireResponseRevision) {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Submission packet ${packet.id} is stale because QuestionnaireResponse revision ${currentSession.revision} no longer matches packet revision ${packet.snapshot.questionnaireResponseRevision}. Rebuild before submitting.`
+        );
+      }
+
+      const existingReceipt = this.store.getSubmissionReceiptByPacketId(packet.id);
+      if (existingReceipt) {
+        return {
+          ...existingReceipt,
+          idempotent: true
+        };
+      }
+
+      if (workItem.status !== "packet_ready") {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} must be packet_ready before mock PAS submission. Current status: ${workItem.status}.`
+        );
+      }
+
+      const receipt = this.createReceipt(packet);
+      this.store.saveSubmissionReceipt(receipt, actor);
+      this.store.updateWorkItemStatus(
+        workItem.id,
+        "submitted",
+        actor,
+        "submission_packet.submitted",
+        packet.id,
+        receipt.receiptId
       );
-    }
-
-    const existingReceipt = this.store.getSubmissionReceiptByPacketId(packet.id);
-    if (existingReceipt) {
-      return {
-        ...existingReceipt,
-        idempotent: true
-      };
-    }
-
-    if (workItem.status !== "packet_ready") {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} must be packet_ready before mock PAS submission. Current status: ${workItem.status}.`
-      );
-    }
-
-    const receipt = this.createReceipt(packet);
-    this.store.saveSubmissionReceipt(receipt, actor);
-    this.store.updateWorkItemStatus(
-      workItem.id,
-      "submitted",
-      actor,
-      "submission_packet.submitted",
-      packet.id,
-      receipt.receiptId
-    );
-    return receipt;
+      return receipt;
+    });
   }
 
   private createPacket(

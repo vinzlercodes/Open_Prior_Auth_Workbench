@@ -22,124 +22,128 @@ import { resolveFromRepoRoot } from "../config/paths.js";
 import { evaluationHash } from "../evaluation/hash.js";
 import { type FhirResource, type FixtureFhirRepository } from "../fhir/fixtureRepository.js";
 import { OperationOutcomeError } from "../errors.js";
-import { type MemoryStore } from "../storage/memoryStore.js";
+import { type PriorAuthStore } from "../storage/priorAuthStore.js";
 
 const WORK_ITEM_EXTENSION_URL = "http://openpriorauth.local/fhir/StructureDefinition/work-item-id";
 
 export class QuestionnaireService {
   constructor(
     private readonly repository: FixtureFhirRepository,
-    private readonly store: MemoryStore
+    private readonly store: PriorAuthStore
   ) {}
 
   getPackage(workItemId: string): QuestionnairePackage {
-    const workItem = this.requireWorkItem(workItemId);
-    const { questionnaire, canonical, version } = this.loadQuestionnaireForWorkItem(workItem);
-    let session = this.store.getQuestionnaireSession(sessionId(workItem.id, questionnaire));
+    return this.store.transaction(() => {
+      const workItem = this.requireWorkItem(workItemId);
+      const { questionnaire, canonical, version } = this.loadQuestionnaireForWorkItem(workItem);
+      let session = this.store.getQuestionnaireSession(sessionId(workItem.id, questionnaire));
 
-    if (!session) {
-      session = this.createSession(workItem, questionnaire, canonical, version);
-      this.store.saveQuestionnaireSession(session);
-    }
+      if (!session) {
+        session = this.createSession(workItem, questionnaire, canonical, version);
+        this.store.saveQuestionnaireSession(session);
+      }
 
-    if (![
-      "review_ready",
-      "packet_ready",
-      "submitted",
-      "more_info_needed",
-      "approved",
-      "denied",
-      "cancelled"
-    ].includes(workItem.status)) {
-      this.store.updateWorkItemStatus(workItem.id, "questionnaire_in_progress");
-    }
+      if (![
+        "review_ready",
+        "packet_ready",
+        "submitted",
+        "more_info_needed",
+        "approved",
+        "denied",
+        "cancelled"
+      ].includes(workItem.status)) {
+        this.store.updateWorkItemStatus(workItem.id, "questionnaire_in_progress");
+      }
 
-    return this.toPackage(workItem, questionnaire, session);
+      return this.toPackage(workItem, questionnaire, session);
+    });
   }
 
   saveResponse(input: QuestionnaireResponseSaveRequest): QuestionnairePackage {
-    if (typeof input.revision !== "number") {
-      throw new OperationOutcomeError(400, "required", "revision is required for /dtr/save-response.");
-    }
+    return this.store.transaction(() => {
+      if (typeof input.revision !== "number") {
+        throw new OperationOutcomeError(400, "required", "revision is required for /dtr/save-response.");
+      }
 
-    const workItem = this.requireWorkItem(input.workItemId);
-    if (["approved", "denied", "cancelled"].includes(workItem.status)) {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Work item ${workItem.id} is terminal and cannot accept questionnaire edits. Current status: ${workItem.status}.`
-      );
-    }
+      const workItem = this.requireWorkItem(input.workItemId);
+      if (["approved", "denied", "cancelled"].includes(workItem.status)) {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Work item ${workItem.id} is terminal and cannot accept questionnaire edits. Current status: ${workItem.status}.`
+        );
+      }
 
-    const { questionnaire } = this.loadQuestionnaireForWorkItem(workItem);
-    const currentSession = this.store.getQuestionnaireSession(sessionId(workItem.id, questionnaire));
+      const { questionnaire } = this.loadQuestionnaireForWorkItem(workItem);
+      const currentSession = this.store.getQuestionnaireSession(sessionId(workItem.id, questionnaire));
 
-    if (!currentSession) {
-      throw new OperationOutcomeError(404, "not-found", `Questionnaire session not found for work item: ${workItem.id}`);
-    }
+      if (!currentSession) {
+        throw new OperationOutcomeError(404, "not-found", `Questionnaire session not found for work item: ${workItem.id}`);
+      }
 
-    if (input.revision !== currentSession.revision) {
-      throw new OperationOutcomeError(
-        409,
-        "conflict",
-        `Stale questionnaire session revision for ${currentSession.id}: expected ${currentSession.revision}, received ${input.revision}.`
-      );
-    }
+      if (input.revision !== currentSession.revision) {
+        throw new OperationOutcomeError(
+          409,
+          "conflict",
+          `Stale questionnaire session revision for ${currentSession.id}: expected ${currentSession.revision}, received ${input.revision}.`
+        );
+      }
 
-    const requestedResponse = normalizeResponseContext(input.questionnaireResponse, workItem);
-    const draftResponse: FhirQuestionnaireResponse = {
-      ...requestedResponse,
-      status: "in-progress"
-    };
-    const draftValidation = validateResponse(questionnaire, draftResponse);
-    const ready = Boolean(input.markReadyForReview && draftValidation.valid);
-    const response = ready
-      ? {
-          ...draftResponse,
-          status: "completed" as const
-        }
-      : draftResponse;
-    const validation = validateResponse(questionnaire, response);
-    const now = this.store.nowIso();
-    const updatedSession: QuestionnaireSession = {
-      ...currentSession,
-      questionnaireResponse: response,
-      validation,
-      status: ready ? "review_ready" : "draft",
-      prefillOverrides: collectPrefillOverrides(
+      const requestedResponse = normalizeResponseContext(input.questionnaireResponse, workItem);
+      const draftResponse: FhirQuestionnaireResponse = {
+        ...requestedResponse,
+        status: "in-progress"
+      };
+      const draftValidation = validateResponse(questionnaire, draftResponse);
+      const ready = Boolean(input.markReadyForReview && draftValidation.valid);
+      const response = ready
+        ? {
+            ...draftResponse,
+            status: "completed" as const
+          }
+        : draftResponse;
+      const validation = validateResponse(questionnaire, response);
+      const now = this.store.nowIso();
+      const updatedSession: QuestionnaireSession = {
+        ...currentSession,
+        questionnaireResponse: response,
+        validation,
+        status: ready ? "review_ready" : "draft",
+        prefillOverrides: collectPrefillOverrides(
+          questionnaire,
+          currentSession.questionnaireResponse,
+          response,
+          input.actorUserId,
+          now
+        ),
+        updatedAt: now,
+        revision: currentSession.revision + 1
+      };
+
+      this.store.saveQuestionnaireSession(updatedSession, input.actorUserId);
+      const nextStatus = nextWorkItemStatusAfterQuestionnaireSave(workItem.status, ready);
+      if (workItem.status !== nextStatus) {
+        this.store.updateWorkItemStatus(
+          workItem.id,
+          nextStatus,
+          input.actorUserId
+        );
+      }
+      if (ready && workItem.status === "more_info_needed") {
+        const resolved = this.store.resolveOpenMoreInfoRequest(workItem.id, "user");
+        this.store.recordOperationEvent(workItem.id, "more_info_resolved", "user", {
+          sessionId: updatedSession.id,
+          revision: updatedSession.revision,
+          moreInfoRequestId: resolved?.id
+        });
+      }
+
+      return this.toPackage(
+        this.requireWorkItem(workItem.id),
         questionnaire,
-        currentSession.questionnaireResponse,
-        response,
-        input.actorUserId,
-        now
-      ),
-      updatedAt: now,
-      revision: currentSession.revision + 1
-    };
-
-    this.store.saveQuestionnaireSession(updatedSession, input.actorUserId);
-    const nextStatus = nextWorkItemStatusAfterQuestionnaireSave(workItem.status, ready);
-    if (workItem.status !== nextStatus) {
-      this.store.updateWorkItemStatus(
-        workItem.id,
-        nextStatus,
-        input.actorUserId
+        updatedSession
       );
-    }
-    if (ready && workItem.status === "more_info_needed") {
-      const resolved = this.store.resolveOpenMoreInfoRequest(workItem.id, "user");
-      this.store.recordOperationEvent(workItem.id, "more_info_resolved", "user", {
-        sessionId: updatedSession.id,
-        revision: updatedSession.revision,
-        moreInfoRequestId: resolved?.id
-      });
-    }
-
-    return this.toPackage(
-      this.requireWorkItem(workItem.id),
-      questionnaire,
-      updatedSession
-    );
+    });
   }
 
   private requireWorkItem(workItemId: string): WorkItem {
