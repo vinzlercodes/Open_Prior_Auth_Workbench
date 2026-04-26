@@ -1,12 +1,13 @@
-# Demo Guide: M1 to M5 Open Prior Auth Workbench
+# Demo Guide: M1 to M6 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M5 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, and M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders. Each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M6 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, and M6 makes local case state survive API restarts through SQLite. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
 - M3: PAS-style local packet builder, mock PAS submission, status timeline, and audit trail.
 - M4: operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
+- M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
 
 No real PHI is required or expected.
 
@@ -28,6 +29,24 @@ Install dependencies once:
 npm install
 ```
 
+Initialize or reset the local SQLite demo database:
+
+```bash
+npm run db:migrate
+```
+
+For a clean demo state:
+
+```bash
+npm run db:reset
+```
+
+To seed queue rows without clicking through the UI:
+
+```bash
+npm run demo:seed
+```
+
 Run the API in one terminal:
 
 ```bash
@@ -46,7 +65,20 @@ Open the app:
 http://localhost:3000
 ```
 
-The API defaults to `http://127.0.0.1:4000`. The API store is in memory, so restart `npm run dev:api` whenever you want a clean demo state.
+The API defaults to `http://127.0.0.1:4000`. The API store is SQLite-backed at `.data/open-prior-auth.sqlite`; use `OPEN_PRIOR_AUTH_DB_PATH` to point at another local database file. Restarting `npm run dev:api` preserves work items, questionnaire sessions, packets, receipts, status events, operations history, and audit events. Use `npm run db:reset` when you want a clean demo state.
+
+## M6: Restart Survival Check
+
+M6 proves the local durable case core:
+
+1. Run `npm run db:reset`.
+2. Run `npm run dev:api`.
+3. Complete M1 through M4 until a case is submitted or pended.
+4. Stop the API process.
+5. Run `npm run dev:api` again.
+6. Reopen the web app and confirm the queue row, status timeline, packet receipt, operations history, and audit trail are still present.
+
+JSON remains the fixture and demo snapshot format. SQLite is the runtime source of truth for local case state.
 
 ## API Helper Setup
 
@@ -555,7 +587,7 @@ npm run build
 
 Expected results:
 
-- `npm test`: M1, M2, M3, and M4 contract tests pass.
+- `npm test`: M1 through M6 contract tests pass.
 - `npm run typecheck`: API, web, and shared-type packages typecheck.
 - `npm run build`: API, web, and shared-type packages build.
 - Queue rows derive `effectiveStatus` exactly from latest payer update plus internal work-item status.
@@ -571,5 +603,5 @@ Expected results:
 - `/pas/*` endpoints are PAS-style local product endpoints, not Da Vinci PAS `$submit`.
 - Payer updates are synthetic mock-payer events, not real PAS responses or inquiry results.
 - Operations metrics are synthetic local metrics, not payer reporting outputs.
-- The operations queue is in memory and resets when the API process restarts.
+- The operations queue is backed by local SQLite and survives API restarts. Use `npm run db:reset` for a clean state.
 - Audit snapshots include full synthetic local resources for demo/debug visibility. Real-PHI deployments would need payload minimization and redaction before durable audit storage.
