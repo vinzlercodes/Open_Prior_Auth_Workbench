@@ -1,11 +1,12 @@
-# Demo Guide: M1 to M4 Open Prior Auth Workbench
+# Demo Guide: M1 to M5 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M4 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, but each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M5 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, and M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
 - M3: PAS-style local packet builder, mock PAS submission, status timeline, and audit trail.
 - M4: operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
+- M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 
 No real PHI is required or expected.
 
@@ -504,6 +505,43 @@ Expected checks:
 - Revised evidence requires a fresh packet and creates a different packet/receipt pair.
 - Approved, denied, and cancelled cases are terminal.
 - Denied updates require structured `code`, `display`, and `detail` reason fields.
+
+## M5: OSS Polish Artifacts
+
+M5 proves that an external builder can understand, run, verify, and extend the project without private context. It does not change the runtime behavior from M4.
+
+### M5 Docs To Review
+
+- Root quickstart and milestone map: `README.md`
+- Contributor guide: `CONTRIBUTING.md`
+- Humble vulnerability reporting guidance: `SECURITY.md`
+- Local environment example: `.env.example`
+- Fixture index: `data/README.md`
+- Architecture note: `docs/architecture/m5_oss_polish.md`
+- Docs-only automation recipes: `examples/automations/README.md`
+- Screenshot guide: `demo/screenshots/README.md`
+
+### M5 Screenshot Set
+
+Capture the screenshot set from a fresh local API process with only synthetic fixture data. The checked-in M5 screenshots use the Codex in-app browser visible capture surface documented in `demo/screenshots/README.md`; future desktop recaptures should prefer `1440x1100` when that capture surface is available.
+
+- `demo/screenshots/01-launch-shim.png`
+- `demo/screenshots/02-requirements-result.png`
+- `demo/screenshots/03-dtr-workspace.png`
+- `demo/screenshots/04-packet-ready.png`
+- `demo/screenshots/05-submitted-pended-queue.png`
+- `demo/screenshots/06-more-info-needed.png`
+- `demo/screenshots/07-terminal-approved-denied.png`
+
+Expected checks:
+
+- Screenshots show Elena Rivera, Acme Health Plan, and MRI lumbar spine without contrast.
+- The requirement result shows the canonical golden evaluation path.
+- The DTR workspace shows prefilled fields and visible validation state.
+- The packet-ready view shows a local PAS-style packet, not a production PAS submission.
+- The pended queue screenshot shows effective payer-pended status while internal status remains submitted.
+- The more-info screenshot shows the case re-entering the evidence workflow.
+- The terminal screenshot shows approved and denied synthetic outcomes.
 
 ## Verification Commands
 

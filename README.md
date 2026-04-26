@@ -1,32 +1,59 @@
 # Open Prior Auth Workbench
 
-M4 is a synthetic-data-only prior authorization workbench for MRI lumbar spine prior authorization. It preserves the M1 requirement-discovery sandbox, M2 local DTR-inspired form workspace, and M3 PAS-style local packet builder, then adds an operations layer for queueing, aging, payer updates, more-info loops, structured denial reasons, and CMS-aligned synthetic metrics.
+Open Prior Auth Workbench is a synthetic-data-only, provider-side prior authorization workbench. It demonstrates a local MRI lumbar spine prior authorization flow across requirement discovery, documentation capture, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
 
-The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints. They are not implementations of the FHIR `$questionnaire-package` operation, Da Vinci PAS `$submit`, production SMART App Launch, CDS Hooks CRD, or production payer transport.
+The project is designed as an open-source reference implementation and developer sandbox. It is useful for learning the product shape and extending local fixtures, but it is not production healthcare infrastructure.
 
-## What Runs in M4
+## Quickstart
 
-- A Next.js web app with a local operations queue, metrics panel, form workspace, packet builder, and mock payer action controls.
-- A TypeScript API with deterministic requirement evaluation, local questionnaire packaging, PAS-style packet build, mock submission, and operations APIs.
-- A checked-in MRI lumbar spine golden scenario with synthetic FHIR R4 seed data.
-- Explicit separation between internal `WorkItem.status` and payer `PayerUpdate.status`.
-- Queue `effectiveStatus` derived exactly as `latestPayerUpdate.status === "pended" && workItem.status === "submitted" ? "pended" : workItem.status`.
-- Transition-matrix enforcement for internal workflow status changes.
-- First-class operation events for payer status, more-info requests, more-info resolution, assignment, and cancellation.
-- Structured denial reasons with `code`, `display`, `detail`, and `source: "mock-payer"`.
-- Explicit `submittedAt`, `decidedAt`, and `decisionTimeMs` fields for payer-cycle metrics.
-- More-info loops that reopen the evidence workspace, resolve back to `review_ready`, require a fresh packet, and keep stale packet submission blocked.
-
-## Local Commands
+Use Node 22 or Node 24. Node 23 is not documented as supported because it is end-of-life.
 
 ```bash
-npm install
+npm ci
 npm test
+npm run typecheck
+npm run build
+```
+
+Run the local demo in two terminals:
+
+```bash
 npm run dev:api
+```
+
+```bash
 npm run dev:web
 ```
 
-The API defaults to `http://localhost:4000`. The web app defaults to `http://localhost:3000` and reads `NEXT_PUBLIC_API_BASE_URL` when set.
+Open `http://localhost:3000`. The API defaults to `http://localhost:4000`. The web app reads `NEXT_PUBLIC_API_BASE_URL` when set.
+
+## What The Milestones Do
+
+- M1: loads a synthetic patient and order context, evaluates local payer requirements, and creates a work item from a deterministic requirement result.
+- M2: opens a local DTR-inspired questionnaire workspace, prefills known fields from fixture FHIR data, validates required answers, and saves a review-ready QuestionnaireResponse.
+- M3: builds a deterministic PAS-style local packet, submits it to a mock PAS transport, and records status and audit history.
+- M4: adds an operations queue, aging and metrics, payer-pended status, more-info requests, structured denial reasons, and terminal outcomes.
+- M5: adds OSS polish for external builders: contributor docs, humble security reporting guidance, CI, fixture indexes, deterministic screenshots, and docs-only automation recipes.
+
+## Important Boundaries
+
+This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, durable persistence, or real EHR integration.
+
+The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints.
+
+All checked-in data is synthetic. Do not use real PHI, real payer credentials, production EHR URLs, or production payer endpoints in this repository.
+
+## Repository Map
+
+- `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, and operations APIs.
+- `apps/web/`: Next.js workbench UI for the synthetic end-to-end demo.
+- `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
+- `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, and questionnaire fixtures.
+- `docs/architecture/`: Milestone architecture notes from M1 through M5.
+- `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
+- `examples/automations/`: Docs-only automation recipes that call existing local APIs.
+- `infra/compose/`: Lightweight compose notes for local API/web services.
+- `tests/`: Contract tests for M1-M4 behavior.
 
 ## API Surface
 
@@ -48,23 +75,16 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `GET /operations/metrics`
 - `POST /demo/seed-work-items`
 
-`POST /work-items/:id/record-payer-status` records synthetic mock-payer `pended`, `approved`, `denied`, or `cancelled` updates. Denied updates require a structured denial reason.
+## Builder Docs
 
-`POST /work-items/:id/request-more-info` moves a submitted or payer-pended case to `more_info_needed`, records requested items, and leaves the payer update history intact.
+- Demo walkthrough: [demo/README.md](demo/README.md)
+- Screenshot guide: [demo/screenshots/README.md](demo/screenshots/README.md)
+- Fixture index: [data/README.md](data/README.md)
+- M5 architecture note: [docs/architecture/m5_oss_polish.md](docs/architecture/m5_oss_polish.md)
+- Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
+- Security reporting: [SECURITY.md](SECURITY.md)
+- Automation recipes: [examples/automations/README.md](examples/automations/README.md)
 
-`GET /operations/metrics` returns provider-side queue metrics plus CMS-aligned synthetic metrics such as approval rate, denial rate, pended rate, more-info rate, and average/median submission-to-decision time.
+## License
 
-## Not Implemented in M4
-
-- No production SMART App Launch.
-- No real CDS Hooks / CRD endpoint conformance.
-- No real FHIR `$questionnaire-package` operation.
-- No real Da Vinci PAS `$submit`, PAS inquiry, or payer endpoint discovery.
-- No X12 278 generation or transmission.
-- No durable database, Temporal workflow engine, or Medplum-backed persistence.
-- No real payer decisions; payer updates are synthetic mock-payer events.
-- No real PHI; synthetic fixtures only.
-
-## Data Posture
-
-All checked-in data is synthetic. Do not use real PHI in this repository.
+This project is licensed under Apache-2.0. See [LICENSE](LICENSE).
