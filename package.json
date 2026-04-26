@@ -4,12 +4,18 @@
   "private": true,
   "type": "module",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.18.0"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "db:migrate": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/db.js migrate",
+    "db:reset": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/db.js reset",
+    "demo:seed": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/demoSeed.js",
     "dev:api": "npm run dev -w @open-prior-auth/api",
     "dev:web": "npm run dev -w @open-prior-auth/web",
     "test": "npm run build -w @open-prior-auth/shared-types && npm run build -w @open-prior-auth/api && node --test tests/*.test.mjs",

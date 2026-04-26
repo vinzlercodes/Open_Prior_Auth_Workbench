@@ -13,14 +13,9 @@ import type {
   WorkItem,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
+import { assertAllowedTransition, type PriorAuthStore, type RequirementRun, snapshot } from "./priorAuthStore.js";
 
-export interface RequirementRun {
-  request: RequirementEvaluationRequest;
-  result: RequirementEvaluationResult;
-  createdAt: string;
-}
-
-export class MemoryStore {
+export class MemoryStore implements PriorAuthStore {
   private readonly requirementRuns = new Map<string, RequirementRun>();
   private readonly workItems = new Map<string, WorkItem>();
   private readonly questionnaireSessions = new Map<string, QuestionnaireSession>();
@@ -41,6 +36,10 @@ export class MemoryStore {
 
   nowIso(): string {
     return this.clock().toISOString();
+  }
+
+  transaction<T>(operation: () => T): T {
+    return operation();
   }
 
   saveEvaluation(request: RequirementEvaluationRequest, result: RequirementEvaluationResult): RequirementEvaluationResult {
@@ -380,33 +379,5 @@ export class MemoryStore {
       afterJson: snapshot(afterJson),
       ...links
     });
-  }
-}
-
-function snapshot<T>(value: T): T {
-  return value === null || value === undefined
-    ? value
-    : JSON.parse(JSON.stringify(value)) as T;
-}
-
-function assertAllowedTransition(from: WorkItem["status"], to: WorkItem["status"]): void {
-  const allowed: Record<WorkItem["status"], WorkItem["status"][]> = {
-    draft: ["requirements_found", "needs_baseline_data", "not_required", "questionnaire_in_progress", "cancelled"],
-    requirements_found: ["questionnaire_in_progress", "cancelled"],
-    not_required: [],
-    needs_baseline_data: ["questionnaire_in_progress", "cancelled"],
-    questionnaire_in_progress: ["review_ready", "cancelled"],
-    review_ready: ["packet_ready", "questionnaire_in_progress", "cancelled"],
-    packet_ready: ["submitted", "submission_failed", "cancelled"],
-    submitted: ["more_info_needed", "approved", "denied", "cancelled"],
-    more_info_needed: ["review_ready", "cancelled"],
-    approved: [],
-    denied: [],
-    cancelled: [],
-    submission_failed: ["packet_ready", "cancelled"]
-  };
-
-  if (!allowed[from].includes(to)) {
-    throw new Error(`Invalid work-item status transition: ${from} -> ${to}`);
   }
 }
