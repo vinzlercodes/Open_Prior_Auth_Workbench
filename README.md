@@ -6,10 +6,11 @@ The project is designed as an open-source reference implementation and developer
 
 ## Quickstart
 
-Use Node 22 or Node 24. Node 23 is not documented as supported because it is end-of-life.
+Use Node `>=22.18.0`. CI tests the exact supported minimum lines `22.18.x` and `24.2.x` because M6 uses built-in `node:sqlite` without extra flags and relies on `DatabaseSync` options available in those lines. Node 23 is not documented as supported because it is end-of-life.
 
 ```bash
 npm ci
+npm run db:migrate
 npm test
 npm run typecheck
 npm run build
@@ -27,6 +28,16 @@ npm run dev:web
 
 Open `http://localhost:3000`. The API defaults to `http://localhost:4000`. The web app reads `NEXT_PUBLIC_API_BASE_URL` when set.
 
+The API uses SQLite by default at `.data/open-prior-auth.sqlite`. Set `OPEN_PRIOR_AUTH_DB_PATH` to use another local database file.
+
+Useful local data commands:
+
+```bash
+npm run db:migrate
+npm run db:reset
+npm run demo:seed
+```
+
 ## What The Milestones Do
 
 - M1: loads a synthetic patient and order context, evaluates local payer requirements, and creates a work item from a deterministic requirement result.
@@ -34,10 +45,11 @@ Open `http://localhost:3000`. The API defaults to `http://localhost:4000`. The w
 - M3: builds a deterministic PAS-style local packet, submits it to a mock PAS transport, and records status and audit history.
 - M4: adds an operations queue, aging and metrics, payer-pended status, more-info requests, structured denial reasons, and terminal outcomes.
 - M5: adds OSS polish for external builders: contributor docs, humble security reporting guidance, CI, fixture indexes, deterministic screenshots, and docs-only automation recipes.
+- M6: replaces the runtime in-memory store with a constrained SQLite repository, adds explicit transaction boundaries for case lifecycle writes, keeps `MemoryStore` for tests only, and introduces local standards-shaped launch/CRD/DTR/PAS adapter boundaries.
 
 ## Important Boundaries
 
-This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, durable persistence, or real EHR integration.
+This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, or real EHR integration.
 
 The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints.
 
@@ -45,15 +57,15 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 
 ## Repository Map
 
-- `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, and operations APIs.
+- `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, SQLite-backed local persistence, and operations APIs.
 - `apps/web/`: Next.js workbench UI for the synthetic end-to-end demo.
 - `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
 - `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, and questionnaire fixtures.
-- `docs/architecture/`: Milestone architecture notes from M1 through M5.
+- `docs/architecture/`: Milestone architecture notes from M1 through M6.
 - `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
 - `examples/automations/`: Docs-only automation recipes that call existing local APIs.
 - `infra/compose/`: Lightweight compose notes for local API/web services.
-- `tests/`: Contract tests for M1-M4 behavior.
+- `tests/`: Contract tests for M1-M6 behavior.
 
 ## API Surface
 
@@ -80,6 +92,7 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - Demo walkthrough: [demo/README.md](demo/README.md)
 - Screenshot guide: [demo/screenshots/README.md](demo/screenshots/README.md)
 - Fixture index: [data/README.md](data/README.md)
+- M6 architecture note: [docs/architecture/m6_durable_standards_boundary.md](docs/architecture/m6_durable_standards_boundary.md)
 - M5 architecture note: [docs/architecture/m5_oss_polish.md](docs/architecture/m5_oss_polish.md)
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security reporting: [SECURITY.md](SECURITY.md)
