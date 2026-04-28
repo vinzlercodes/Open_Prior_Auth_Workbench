@@ -3,6 +3,7 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import type {
   AuditEvent,
+  EvidenceAttachment,
   MoreInfoRequest,
   OperationEvent,
   OperationEventType,
@@ -21,7 +22,7 @@ import { assertAllowedTransition, type PriorAuthStore, type RequirementRun, snap
 
 type Row = Record<string, unknown>;
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 export function defaultDatabasePath(): string {
   return process.env.OPEN_PRIOR_AUTH_DB_PATH ?? resolveFromRepoRoot(".data/open-prior-auth.sqlite");
@@ -541,6 +542,90 @@ export class SqliteStore implements PriorAuthStore {
     `).all(workItemId) as Row[]).map(auditEventFromRow);
   }
 
+  saveEvidenceAttachment(attachment: EvidenceAttachment, actor = "system", action = "evidence.saved"): EvidenceAttachment {
+    return this.transaction(() => {
+      const previous = this.getEvidenceAttachment(attachment.id);
+      this.db.prepare(`
+        INSERT INTO evidence_attachments (
+          id, work_item_id, source, fixture_id, status, content_mode, title, filename,
+          content_type, size_bytes, sha256, storage_key, inline_base64,
+          document_reference_json, binary_json, created_at, updated_at, accepted_at,
+          removed_at, included_in_packet_id
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = excluded.status,
+          title = excluded.title,
+          filename = excluded.filename,
+          content_type = excluded.content_type,
+          size_bytes = excluded.size_bytes,
+          sha256 = excluded.sha256,
+          storage_key = excluded.storage_key,
+          inline_base64 = excluded.inline_base64,
+          document_reference_json = excluded.document_reference_json,
+          binary_json = excluded.binary_json,
+          updated_at = excluded.updated_at,
+          accepted_at = excluded.accepted_at,
+          removed_at = excluded.removed_at,
+          included_in_packet_id = excluded.included_in_packet_id
+      `).run(
+        attachment.id,
+        attachment.workItemId,
+        attachment.source,
+        attachment.fixtureId ?? null,
+        attachment.status,
+        attachment.contentMode,
+        attachment.title,
+        attachment.filename,
+        attachment.contentType,
+        attachment.sizeBytes,
+        attachment.sha256,
+        attachment.storageKey ?? null,
+        attachment.inlineBase64 ?? null,
+        encode(attachment.documentReference),
+        attachment.binary ? encode(attachment.binary) : null,
+        attachment.createdAt,
+        attachment.updatedAt,
+        attachment.acceptedAt ?? null,
+        attachment.removedAt ?? null,
+        attachment.includedInPacketId ?? null
+      );
+      this.audit(actor, action, "EvidenceAttachment", attachment.id, previous, attachment, {
+        workItemId: attachment.workItemId,
+        packetId: attachment.includedInPacketId
+      });
+      return snapshot(attachment);
+    });
+  }
+
+  getEvidenceAttachment(id: string): EvidenceAttachment | null {
+    return this.evidenceAttachmentFromRow(
+      this.db.prepare("SELECT * FROM evidence_attachments WHERE id = ?").get(id) as Row | undefined
+    );
+  }
+
+  getEvidenceAttachmentsForWorkItem(workItemId: string): EvidenceAttachment[] {
+    return (this.db.prepare(`
+      SELECT * FROM evidence_attachments WHERE work_item_id = ? ORDER BY created_at, id
+    `).all(workItemId) as Row[]).map((row) => this.evidenceAttachmentFromRow(row)).filter(isPresent);
+  }
+
+  markEvidenceIncludedInPacket(workItemId: string, evidenceId: string, packetId: string, actor = "system"): EvidenceAttachment {
+    return this.transaction(() => {
+      const attachment = this.getEvidenceAttachment(evidenceId);
+      if (!attachment || attachment.workItemId !== workItemId) {
+        throw new Error(`Unknown evidence attachment: ${evidenceId}`);
+      }
+      const updated: EvidenceAttachment = {
+        ...attachment,
+        status: "included-in-packet",
+        includedInPacketId: packetId,
+        updatedAt: this.nowIso()
+      };
+      return this.saveEvidenceAttachment(updated, actor, "evidence.included_in_packet");
+    });
+  }
+
   hasWorkItems(): boolean {
     const row = this.db.prepare("SELECT COUNT(*) AS count FROM work_items").get() as Row;
     return number(row.count) > 0;
@@ -554,14 +639,30 @@ export class SqliteStore implements PriorAuthStore {
       ) STRICT;
     `);
     const current = this.db.prepare("SELECT COALESCE(MAX(version), 0) AS version FROM schema_migrations").get() as Row;
-    if (number(current.version) >= SCHEMA_VERSION) {
+    let version = number(current.version);
+    if (version >= SCHEMA_VERSION) {
       return;
     }
-    this.transaction(() => {
-      this.db.exec(SCHEMA_SQL);
-      this.db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
-        .run(SCHEMA_VERSION, this.nowIso());
-    });
+    if (version === 0) {
+      this.transaction(() => {
+        this.db.exec(SCHEMA_SQL);
+        this.db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+          .run(1, this.nowIso());
+      });
+      version = 1;
+    }
+    if (version === 1) {
+      this.db.exec("PRAGMA foreign_keys = OFF;");
+      try {
+        this.transaction(() => {
+          this.db.exec(SCHEMA_V2_SQL);
+          this.db.prepare("INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)")
+            .run(2, this.nowIso());
+        });
+      } finally {
+        this.db.exec("PRAGMA foreign_keys = ON;");
+      }
+    }
   }
 
   private getWorkItemByEvaluationId(evaluationId: string): WorkItem | null {
@@ -691,6 +792,34 @@ export class SqliteStore implements PriorAuthStore {
       dueAt: nullableText(row.due_at) ?? undefined,
       requestedAt: text(row.requested_at),
       resolvedAt: nullableText(row.resolved_at) ?? undefined
+    };
+  }
+
+  private evidenceAttachmentFromRow(row: Row | undefined): EvidenceAttachment | null {
+    if (!row) {
+      return null;
+    }
+    return {
+      id: text(row.id),
+      workItemId: text(row.work_item_id),
+      source: text(row.source) as EvidenceAttachment["source"],
+      fixtureId: nullableText(row.fixture_id) ?? undefined,
+      status: text(row.status) as EvidenceAttachment["status"],
+      contentMode: text(row.content_mode) as EvidenceAttachment["contentMode"],
+      title: text(row.title),
+      filename: text(row.filename),
+      contentType: text(row.content_type),
+      sizeBytes: number(row.size_bytes),
+      sha256: text(row.sha256),
+      storageKey: nullableText(row.storage_key) ?? undefined,
+      inlineBase64: nullableText(row.inline_base64) ?? undefined,
+      documentReference: decode(row.document_reference_json),
+      binary: row.binary_json === null ? undefined : decode(row.binary_json),
+      createdAt: text(row.created_at),
+      updatedAt: text(row.updated_at),
+      acceptedAt: nullableText(row.accepted_at) ?? undefined,
+      removedAt: nullableText(row.removed_at) ?? undefined,
+      includedInPacketId: nullableText(row.included_in_packet_id) ?? undefined
     };
   }
 
@@ -856,7 +985,7 @@ CREATE TABLE questionnaire_sessions (
 CREATE TABLE submission_packets (
   id TEXT PRIMARY KEY NOT NULL,
   work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
-  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version = 'm3.local-pas-style.v1'),
+  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version IN ('m3.local-pas-style.v1','m7.local-pas-evidence.v1')),
   built_at TEXT NOT NULL,
   transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
   bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
@@ -923,7 +1052,7 @@ CREATE TABLE more_info_requests (
 CREATE TABLE operation_events (
   id TEXT PRIMARY KEY NOT NULL,
   work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
-  type TEXT NOT NULL CHECK (type IN ('payer_status_recorded','more_info_requested','more_info_resolved','case_assigned','case_cancelled')),
+  type TEXT NOT NULL CHECK (type IN ('payer_status_recorded','more_info_requested','more_info_resolved','case_assigned','case_cancelled','evidence_attached','evidence_uploaded','evidence_accepted','evidence_removed','evidence_included_in_packet')),
   actor TEXT NOT NULL CHECK (actor IN (${ACTOR_CHECK})),
   created_at TEXT NOT NULL,
   details_json TEXT NOT NULL CHECK (json_valid(details_json))
@@ -950,4 +1079,84 @@ CREATE INDEX idx_payer_updates_work_item ON payer_updates(work_item_id, created_
 CREATE INDEX idx_more_info_requests_work_item ON more_info_requests(work_item_id, requested_at);
 CREATE INDEX idx_operation_events_work_item ON operation_events(work_item_id, created_at);
 CREATE INDEX idx_submission_packets_work_item ON submission_packets(work_item_id, built_at);
+`;
+
+const SCHEMA_V2_SQL = `
+CREATE TABLE IF NOT EXISTS evidence_attachments (
+  id TEXT PRIMARY KEY NOT NULL,
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  source TEXT NOT NULL CHECK (source IN ('fixture','upload')),
+  fixture_id TEXT,
+  status TEXT NOT NULL CHECK (status IN ('available','attached','accepted','removed','included-in-packet')),
+  content_mode TEXT NOT NULL CHECK (content_mode IN ('inline-base64','local-binary','local-reference','bundle-fixture')),
+  title TEXT NOT NULL CHECK (length(title) > 0),
+  filename TEXT NOT NULL CHECK (length(filename) > 0),
+  content_type TEXT NOT NULL CHECK (length(content_type) > 0),
+  size_bytes INTEGER NOT NULL CHECK (size_bytes >= 0),
+  sha256 TEXT NOT NULL CHECK (length(sha256) > 0),
+  storage_key TEXT,
+  inline_base64 TEXT,
+  document_reference_json TEXT NOT NULL CHECK (json_valid(document_reference_json)),
+  binary_json TEXT CHECK (binary_json IS NULL OR json_valid(binary_json)),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  accepted_at TEXT,
+  removed_at TEXT,
+  included_in_packet_id TEXT
+) STRICT;
+
+CREATE INDEX IF NOT EXISTS idx_evidence_attachments_work_item ON evidence_attachments(work_item_id, created_at);
+
+CREATE TABLE IF NOT EXISTS submission_packets_v2 (
+  id TEXT PRIMARY KEY NOT NULL,
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version IN ('m3.local-pas-style.v1','m7.local-pas-evidence.v1')),
+  built_at TEXT NOT NULL,
+  transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
+  bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
+  attachment_manifest_json TEXT NOT NULL CHECK (json_valid(attachment_manifest_json)),
+  snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+  snapshot_work_item_id TEXT NOT NULL,
+  snapshot_questionnaire_response_id TEXT NOT NULL,
+  snapshot_questionnaire_response_revision INTEGER NOT NULL CHECK (snapshot_questionnaire_response_revision >= 1),
+  snapshot_payer_id TEXT NOT NULL,
+  UNIQUE (
+    snapshot_work_item_id,
+    snapshot_questionnaire_response_id,
+    snapshot_questionnaire_response_revision,
+    snapshot_payer_id,
+    packet_schema_version
+  )
+) STRICT;
+
+INSERT OR IGNORE INTO submission_packets_v2 (
+  id, work_item_id, packet_schema_version, built_at, transport, bundle_json,
+  attachment_manifest_json, snapshot_json, snapshot_work_item_id,
+  snapshot_questionnaire_response_id, snapshot_questionnaire_response_revision, snapshot_payer_id
+)
+SELECT
+  id, work_item_id, packet_schema_version, built_at, transport, bundle_json,
+  attachment_manifest_json, snapshot_json, snapshot_work_item_id,
+  snapshot_questionnaire_response_id, snapshot_questionnaire_response_revision, snapshot_payer_id
+FROM submission_packets;
+
+DROP TABLE submission_packets;
+ALTER TABLE submission_packets_v2 RENAME TO submission_packets;
+CREATE INDEX IF NOT EXISTS idx_submission_packets_work_item ON submission_packets(work_item_id, built_at);
+
+CREATE TABLE IF NOT EXISTS operation_events_v2 (
+  id TEXT PRIMARY KEY NOT NULL,
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('payer_status_recorded','more_info_requested','more_info_resolved','case_assigned','case_cancelled','evidence_attached','evidence_uploaded','evidence_accepted','evidence_removed','evidence_included_in_packet')),
+  actor TEXT NOT NULL CHECK (actor IN (${ACTOR_CHECK})),
+  created_at TEXT NOT NULL,
+  details_json TEXT NOT NULL CHECK (json_valid(details_json))
+) STRICT;
+
+INSERT OR IGNORE INTO operation_events_v2 (id, work_item_id, type, actor, created_at, details_json)
+SELECT id, work_item_id, type, actor, created_at, details_json FROM operation_events;
+
+DROP TABLE operation_events;
+ALTER TABLE operation_events_v2 RENAME TO operation_events;
+CREATE INDEX IF NOT EXISTS idx_operation_events_work_item ON operation_events(work_item_id, created_at);
 `;

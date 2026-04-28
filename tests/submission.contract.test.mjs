@@ -129,13 +129,14 @@ test("golden case builds a deterministic PAS-style local packet with a preauthor
 
   assert.equal(packet.id, rebuilt.id);
   assert.equal(packet.transport, "mock-pas");
-  assert.equal(packet.packetSchemaVersion, "m3.local-pas-style.v1");
+  assert.equal(packet.packetSchemaVersion, "m7.local-pas-evidence.v1");
   assert.equal(packet.snapshot.workItemId, workItem.id);
   assert.equal(packet.snapshot.questionnaireResponseId, ready.questionnaireResponse.id);
   assert.equal(packet.snapshot.questionnaireResponseRevision, ready.session.revision);
   assert.equal(packet.snapshot.payerId, workItem.payerId);
   assert.equal(packet.attachmentManifest.attachments.length, 0);
-  assert.equal(packet.attachmentManifest.missingFixtureReason, "No document fixtures in M3");
+  assert.equal(packet.attachmentManifest.missingFixtureReason, "No accepted evidence attachments");
+  assert.ok(packet.snapshot.evidenceDigest);
   assert.equal(claim.use, "preauthorization");
   assert.equal(findResource(packet.bundle, "QuestionnaireResponse").id, ready.questionnaireResponse.id);
   assert.equal(store.getWorkItem(workItem.id).status, "packet_ready");

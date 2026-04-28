@@ -1,6 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import {
   type FhirCoding,
+  type FhirBundle,
   type FhirQuestionnaire,
   type FhirQuestionnaireAnswerOption,
   type FhirQuestionnaireEnableWhen,
@@ -8,6 +9,8 @@ import {
   type FhirQuestionnaireResponse,
   type FhirQuestionnaireResponseAnswer,
   type FhirQuestionnaireResponseItem,
+  type LocalDtrExpressionEvaluation,
+  type LocalDtrStandardsPackage,
   type PrefillOverride,
   type PrefillSummary,
   type QuestionnaireCompletion,
@@ -226,10 +229,7 @@ export class QuestionnaireService {
       questionnaireVersion: session.questionnaireVersion,
       questionnaire,
       questionnaireResponse: session.questionnaireResponse,
-      dependencies: {
-        libraries: [],
-        valueSets: []
-      },
+      dependencies: loadDtrDependencies(session.questionnaireCanonical),
       prefill: buildPrefillSummary(context),
       validation: session.validation,
       completion: calculateCompletion(questionnaire, session.questionnaireResponse),
@@ -241,6 +241,36 @@ export class QuestionnaireService {
         prefillOverrides: session.prefillOverrides
       }
     };
+  }
+
+  getStandardsPackage(workItemId: string): LocalDtrStandardsPackage {
+    const pkg = this.getPackage(workItemId);
+    const dependencyBundle = buildDtrDependencyBundle(pkg.questionnaire, pkg.questionnaireResponse, pkg.dependencies);
+    return {
+      conformance: false,
+      mode: "local-non-conformant",
+      boundary: "dtr",
+      contractVersion: "m7.local-dtr-boundary.v1",
+      response: {
+        resourceType: "Parameters",
+        parameter: [
+          {
+            name: "return",
+            resource: dependencyBundle
+          },
+          {
+            name: "questionnaire",
+            valueString: pkg.questionnaireCanonical
+          }
+        ]
+      },
+      expressionEvaluations: evaluateFixtureExpressions(pkg.workItemId, pkg.questionnaireResponse, pkg.dependencies.libraries)
+    };
+  }
+
+  evaluateFixtureExpression(workItemId: string, expressionName: string): LocalDtrExpressionEvaluation {
+    const pkg = this.getPackage(workItemId);
+    return evaluateFixtureExpression(expressionName, pkg.questionnaireResponse, pkg.dependencies.libraries);
   }
 }
 
@@ -257,6 +287,99 @@ function loadQuestionnaire(url: string, version: string): FhirQuestionnaire {
   }
 
   throw new OperationOutcomeError(404, "not-found", `Questionnaire fixture not found: ${url}|${version}`);
+}
+
+function loadDtrDependencies(canonical: string): { libraries: Record<string, unknown>[]; valueSets: Record<string, unknown>[] } {
+  const dependencyFile = resolveFromRepoRoot("data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json");
+  const dependencies = JSON.parse(readFileSync(dependencyFile, "utf8")) as {
+    questionnaire: string;
+    libraries: Record<string, unknown>[];
+    valueSets: Record<string, unknown>[];
+  };
+  if (dependencies.questionnaire !== canonical) {
+    return { libraries: [], valueSets: [] };
+  }
+  return {
+    libraries: dependencies.libraries,
+    valueSets: dependencies.valueSets
+  };
+}
+
+function buildDtrDependencyBundle(
+  questionnaire: FhirQuestionnaire,
+  questionnaireResponse: FhirQuestionnaireResponse,
+  dependencies: { libraries: unknown[]; valueSets: unknown[] }
+): FhirBundle {
+  const resources = [
+    questionnaire,
+    ...dependencies.libraries,
+    ...dependencies.valueSets,
+    questionnaireResponse
+  ] as Array<{ resourceType: string; id?: string; [key: string]: unknown }>;
+  return {
+    resourceType: "Bundle",
+    id: `dtr-package-${evaluationHash(`${questionnaire.url}|${questionnaire.version}|${questionnaireResponse.id}`)}`,
+    type: "collection",
+    entry: resources.map((resource) => ({
+      fullUrl: resource.id ? `${resource.resourceType}/${resource.id}` : undefined,
+      resource
+    }))
+  };
+}
+
+function evaluateFixtureExpressions(
+  workItemId: string,
+  response: FhirQuestionnaireResponse,
+  libraries: unknown[]
+): LocalDtrExpressionEvaluation[] {
+  const names = new Set<string>();
+  for (const library of libraries as Array<{ extension?: Array<{ url?: string; valueString?: string }> }>) {
+    for (const extension of library.extension ?? []) {
+      if (extension.url === "http://openpriorauth.local/fhir/StructureDefinition/local-fixture-expression" && extension.valueString) {
+        names.add(extension.valueString);
+      }
+    }
+  }
+  return [...names].map((name) => evaluateFixtureExpression(name, response, libraries, workItemId));
+}
+
+function evaluateFixtureExpression(
+  expressionName: string,
+  response: FhirQuestionnaireResponse,
+  libraries: unknown[],
+  workItemId = "unknown"
+): LocalDtrExpressionEvaluation {
+  const declaredNames = new Set<string>();
+  for (const library of libraries as Array<{ extension?: Array<{ url?: string; valueString?: string }> }>) {
+    for (const extension of library.extension ?? []) {
+      if (extension.url === "http://openpriorauth.local/fhir/StructureDefinition/local-fixture-expression" && extension.valueString) {
+        declaredNames.add(extension.valueString);
+      }
+    }
+  }
+  if (!declaredNames.has(expressionName)) {
+    throw new OperationOutcomeError(400, "not-supported", `Unsupported local DTR fixture expression for ${workItemId}: ${expressionName}`);
+  }
+
+  if (expressionName === "mri.hasConservativeTherapyEvidence") {
+    return {
+      expressionName,
+      language: "text/cql-identifier",
+      result: hasAnswer(responseItemMap(response.item).get("conservative-treatment-evidence")),
+      source: "fixture-allowlist"
+    };
+  }
+
+  if (expressionName === "mri.priorSurgeryDetailsRequired") {
+    return {
+      expressionName,
+      language: "text/cql-identifier",
+      result: answerValue(responseItemMap(response.item).get("prior-spine-surgery")?.answer?.[0]) === true,
+      source: "fixture-allowlist"
+    };
+  }
+
+  throw new OperationOutcomeError(400, "not-supported", `Unsupported local DTR fixture expression for ${workItemId}: ${expressionName}`);
 }
 
 function assertUniqueLinkIds(questionnaire: FhirQuestionnaire): void {
