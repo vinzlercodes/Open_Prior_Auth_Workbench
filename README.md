@@ -46,12 +46,15 @@ npm run demo:seed
 - M4: adds an operations queue, aging and metrics, payer-pended status, more-info requests, structured denial reasons, and terminal outcomes.
 - M5: adds OSS polish for external builders: contributor docs, humble security reporting guidance, CI, fixture indexes, deterministic screenshots, and docs-only automation recipes.
 - M6: replaces the runtime in-memory store with a constrained SQLite repository, adds explicit transaction boundaries for case lifecycle writes, keeps `MemoryStore` for tests only, and introduces local standards-shaped launch/CRD/DTR/PAS adapter boundaries.
+- M7: adds local synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet DTR dependencies, standards-shaped non-conformant aliases, and SQLite schema v2 evidence metadata.
 
 ## Important Boundaries
 
-This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, or real EHR integration.
+This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
 
 The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints.
+
+The M7 standards-shaped aliases return explicit non-conformance metadata. They exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
 
 All checked-in data is synthetic. Do not use real PHI, real payer credentials, production EHR URLs, or production payer endpoints in this repository.
 
@@ -79,6 +82,20 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - `POST /dtr/save-response`
 - `POST /pas/build-packet`
 - `POST /pas/submit`
+- `GET /standards/boundaries`
+- `GET /.well-known/smart-configuration`
+- `GET /smart/launch`
+- `POST /smart/token`
+- `POST /crd/evaluate`
+- `POST /dtr/questionnaire-package`
+- `POST /dtr/evaluate-fixture-expression`
+- `POST /pas/build-submission`
+- `POST /pas/submit-local`
+- `GET /work-items/:id/evidence`
+- `POST /work-items/:id/evidence/attach-fixture`
+- `POST /work-items/:id/evidence/upload`
+- `POST /work-items/:id/evidence/:evidenceId/accept`
+- `POST /work-items/:id/evidence/:evidenceId/remove`
 - `GET /work-items/:id/status`
 - `GET /work-items/:id/audit`
 - `GET /work-items/:id/operations`
@@ -93,6 +110,7 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - Screenshot guide: [demo/screenshots/README.md](demo/screenshots/README.md)
 - Fixture index: [data/README.md](data/README.md)
 - M6 architecture note: [docs/architecture/m6_durable_standards_boundary.md](docs/architecture/m6_durable_standards_boundary.md)
+- M7 architecture note: [docs/architecture/m7_evidence_and_dtr_boundary.md](docs/architecture/m7_evidence_and_dtr_boundary.md)
 - M5 architecture note: [docs/architecture/m5_oss_polish.md](docs/architecture/m5_oss_polish.md)
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security reporting: [SECURITY.md](SECURITY.md)

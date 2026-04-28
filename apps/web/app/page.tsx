@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import type {
   AuditEvent,
+  EvidenceAttachment,
+  EvidenceListResponse,
   FhirQuestionnaireItem,
   FhirQuestionnaireResponse,
   FhirQuestionnaireResponseAnswer,
@@ -53,6 +55,9 @@ export default function Home() {
   const [queueRows, setQueueRows] = useState<WorkItemQueueRow[]>([]);
   const [metrics, setMetrics] = useState<OperationsMetrics | null>(null);
   const [operationsHistory, setOperationsHistory] = useState<WorkItemOperationsHistory | null>(null);
+  const [evidenceList, setEvidenceList] = useState<EvidenceListResponse | null>(null);
+  const [uploadFilename, setUploadFilename] = useState("local_evidence_note.txt");
+  const [uploadContent, setUploadContent] = useState("Synthetic uploaded evidence note for the local M7 demo.");
   const [queueStatusFilter, setQueueStatusFilter] = useState("");
   const [queueOwnerFilter, setQueueOwnerFilter] = useState("");
   const [isBusy, setIsBusy] = useState(false);
@@ -90,6 +95,7 @@ export default function Home() {
       setStatusEvents([]);
       setAuditEvents([]);
       setOperationsHistory(null);
+      setEvidenceList(null);
       try {
       const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
         method: "POST",
@@ -152,6 +158,7 @@ export default function Home() {
       setQuestionnairePackage(pkg);
       setFormResponse(clone(pkg.questionnaireResponse));
       setWorkItemStatusFromPackage(pkg, true);
+      await refreshEvidence(workItem.id);
       await refreshStatus(workItem.id);
       await refreshAudit(workItem.id);
       await refreshOperations(workItem.id);
@@ -185,6 +192,7 @@ export default function Home() {
       await refreshStatus(pkg.workItemId);
       await refreshAudit(pkg.workItemId);
       await refreshOperations(pkg.workItemId);
+      await refreshEvidence(pkg.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Questionnaire save failed"));
     } finally {
@@ -209,6 +217,7 @@ export default function Home() {
       await refreshStatus(workItem.id);
       await refreshAudit(workItem.id);
       await refreshOperations(workItem.id);
+      await refreshEvidence(workItem.id);
     } catch (caught) {
       setError(formatCaught(caught, "Packet build failed"));
     } finally {
@@ -281,6 +290,77 @@ export default function Home() {
     setAuditEvents(await getJson<AuditEvent[]>(`/work-items/${workItemId}/audit`));
   }
 
+  async function refreshEvidence(workItemId = workItem?.id) {
+    if (!workItemId) {
+      return;
+    }
+    setEvidenceList(await getJson<EvidenceListResponse>(`/work-items/${workItemId}/evidence`));
+  }
+
+  async function attachFixture(fixtureId: string) {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/attach-fixture`, {
+        fixtureId,
+        actorUserId: "m7-demo-operator"
+      });
+      await refreshEvidence(workItem.id);
+      await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Evidence fixture attach failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function uploadEvidence() {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/upload`, {
+        filename: uploadFilename,
+        contentType: "text/plain",
+        base64Data: btoa(uploadContent),
+        actorUserId: "m7-demo-operator"
+      });
+      await refreshEvidence(workItem.id);
+      await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Evidence upload failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function updateEvidenceStatus(evidenceId: string, action: "accept" | "remove") {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/${evidenceId}/${action}`, {
+        actorUserId: "m7-demo-operator"
+      });
+      await refreshEvidence(workItem.id);
+      await refreshAudit(workItem.id);
+      await refreshOperations(workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, `Evidence ${action} failed`));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   async function refreshOperations(workItemId = workItem?.id) {
     const params = new URLSearchParams();
     if (queueStatusFilter) {
@@ -313,6 +393,7 @@ export default function Home() {
       await refreshStatus(selected.id);
       await refreshAudit(selected.id);
       await refreshOperations(selected.id);
+      await refreshEvidence(selected.id);
     } catch (caught) {
       setError(formatCaught(caught, "Demo case seeding failed"));
     } finally {
@@ -332,6 +413,7 @@ export default function Home() {
       await refreshStatus(row.workItemId);
       await refreshAudit(row.workItemId);
       await refreshOperations(row.workItemId);
+      await refreshEvidence(row.workItemId);
     } catch (caught) {
       setError(formatCaught(caught, "Queue selection failed"));
     } finally {
@@ -428,6 +510,9 @@ export default function Home() {
           </button>
           <button type="button" onClick={openFormWorkspace} disabled={isBusy || !workItem}>
             Open form workspace
+          </button>
+          <button type="button" onClick={() => refreshEvidence()} disabled={isBusy || !workItem}>
+            Refresh evidence
           </button>
           <button type="button" onClick={() => saveResponse(false)} disabled={isBusy || !questionnairePackage}>
             Save draft
@@ -556,6 +641,18 @@ export default function Home() {
           auditEvents={auditEvents}
         />
 
+        <EvidencePanel
+          evidence={evidenceList}
+          disabled={isBusy || !workItem}
+          uploadFilename={uploadFilename}
+          uploadContent={uploadContent}
+          onUploadFilenameChange={setUploadFilename}
+          onUploadContentChange={setUploadContent}
+          onAttachFixture={attachFixture}
+          onUpload={uploadEvidence}
+          onUpdateStatus={updateEvidenceStatus}
+        />
+
         <QuestionnaireWorkspace
           pkg={questionnairePackage}
           response={formResponse}
@@ -638,6 +735,83 @@ function SubmissionPanel({
           </div>
         )) : (
           <p className="muted">Audit entries appear after a work item changes state.</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function EvidencePanel({
+  evidence,
+  disabled,
+  uploadFilename,
+  uploadContent,
+  onUploadFilenameChange,
+  onUploadContentChange,
+  onAttachFixture,
+  onUpload,
+  onUpdateStatus
+}: {
+  evidence: EvidenceListResponse | null;
+  disabled: boolean;
+  uploadFilename: string;
+  uploadContent: string;
+  onUploadFilenameChange: (value: string) => void;
+  onUploadContentChange: (value: string) => void;
+  onAttachFixture: (fixtureId: string) => void;
+  onUpload: () => void;
+  onUpdateStatus: (evidenceId: string, action: "accept" | "remove") => void;
+}) {
+  return (
+    <section className="panel evidencePanel">
+      <div className="panelHeader">
+        <p className="eyebrow">Evidence attachments</p>
+        <h2>{evidence ? `${evidence.attachments.length} attachment${evidence.attachments.length === 1 ? "" : "s"}` : "No evidence loaded"}</h2>
+      </div>
+
+      <div className="evidenceFixtures">
+        {evidence?.availableFixtures.map((fixture) => (
+          <button
+            key={fixture.fixtureId}
+            type="button"
+            disabled={disabled}
+            onClick={() => onAttachFixture(fixture.fixtureId)}
+          >
+            Attach {fixture.title}
+          </button>
+        )) ?? <p className="muted">Refresh evidence after creating a work item.</p>}
+      </div>
+
+      <div className="uploadBox">
+        <label>
+          <span>Filename</span>
+          <input value={uploadFilename} disabled={disabled} onChange={(event) => onUploadFilenameChange(event.target.value)} />
+        </label>
+        <label>
+          <span>Text upload content</span>
+          <textarea value={uploadContent} disabled={disabled} onChange={(event) => onUploadContentChange(event.target.value)} />
+        </label>
+        <button type="button" disabled={disabled} onClick={onUpload}>Upload local text evidence</button>
+      </div>
+
+      <div className="evidenceList">
+        {evidence?.attachments.length ? evidence.attachments.map((attachment) => (
+          <div className="evidenceRow" key={attachment.id}>
+            <span>
+              <strong>{attachment.title}</strong>
+              <em>{attachment.filename} - {attachment.contentType}</em>
+            </span>
+            <span>
+              <strong>{attachment.status.replaceAll("-", " ")}</strong>
+              <em>{attachment.contentMode.replaceAll("-", " ")}</em>
+            </span>
+            <span className="evidenceActions">
+              <button type="button" disabled={disabled || attachment.status === "accepted" || attachment.status === "included-in-packet"} onClick={() => onUpdateStatus(attachment.id, "accept")}>Accept</button>
+              <button type="button" disabled={disabled || attachment.status === "removed" || attachment.status === "included-in-packet"} onClick={() => onUpdateStatus(attachment.id, "remove")}>Remove</button>
+            </span>
+          </div>
+        )) : (
+          <p className="muted">Attach a synthetic fixture or upload a local text note before building the packet.</p>
         )}
       </div>
     </section>

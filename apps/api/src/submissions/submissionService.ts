@@ -1,25 +1,32 @@
 import type {
+  EvidenceAttachment,
   FhirBundle,
   PacketBuildRequest,
   PacketSubmitRequest,
   QuestionnaireSession,
+  SubmissionAttachmentManifestEntry,
   SubmissionPacket,
   SubmissionPacketSnapshot,
   SubmissionReceipt,
   WorkItem
 } from "@open-prior-auth/shared-types";
 import { OperationOutcomeError } from "../errors.js";
+import { EvidenceRepository, evidenceDigest } from "../evidence/evidenceRepository.js";
 import { evaluationHash } from "../evaluation/hash.js";
 import { type FhirResource, type FixtureFhirRepository } from "../fhir/fixtureRepository.js";
 import { type PriorAuthStore } from "../storage/priorAuthStore.js";
 
-const PACKET_SCHEMA_VERSION = "m3.local-pas-style.v1" as const;
+const PACKET_SCHEMA_VERSION = "m7.local-pas-evidence.v1" as const;
 
 export class SubmissionService {
   constructor(
     private readonly repository: FixtureFhirRepository,
     private readonly store: PriorAuthStore
-  ) {}
+  ) {
+    this.evidenceRepository = new EvidenceRepository(store);
+  }
+
+  private readonly evidenceRepository: EvidenceRepository;
 
   buildPacket(input: PacketBuildRequest): SubmissionPacket {
     return this.store.transaction(() => {
@@ -35,7 +42,8 @@ export class SubmissionService {
       }
 
       const session = this.requireReviewReadySession(workItem);
-      const snapshot = buildSnapshot(workItem, session);
+      const evidenceAttachments = this.evidenceRepository.acceptedEvidenceForPacket(workItem.id);
+      const snapshot = buildSnapshot(workItem, session, evidenceAttachments);
       const existing = this.store.findSubmissionPacketBySnapshot(snapshot);
       if (existing) {
         if (workItem.status === "review_ready") {
@@ -44,8 +52,17 @@ export class SubmissionService {
         return existing;
       }
 
-      const packet = this.createPacket(workItem, session, snapshot);
+      const packet = this.createPacket(workItem, session, snapshot, evidenceAttachments);
       this.store.saveSubmissionPacket(packet, actor);
+      for (const evidence of evidenceAttachments) {
+        if (evidence.includedInPacketId !== packet.id) {
+          this.store.markEvidenceIncludedInPacket(workItem.id, evidence.id, packet.id, actor);
+          this.store.recordOperationEvent(workItem.id, "evidence_included_in_packet", "system", {
+            evidenceAttachmentId: evidence.id,
+            packetId: packet.id
+          });
+        }
+      }
       this.store.updateWorkItemStatus(workItem.id, "packet_ready", actor, "submission_packet.built", packet.id);
       return packet;
     });
@@ -102,7 +119,8 @@ export class SubmissionService {
   private createPacket(
     workItem: WorkItem,
     session: QuestionnaireSession,
-    snapshot: SubmissionPacketSnapshot
+    snapshot: SubmissionPacketSnapshot,
+    evidenceAttachments: EvidenceAttachment[]
   ): SubmissionPacket {
     const packetId = `packet-${evaluationHash(snapshot)}`;
     const context = this.repository.getPatientContext(
@@ -111,7 +129,9 @@ export class SubmissionService {
       workItem.requestResourceType,
       workItem.requestResourceId
     );
-    const claim = buildClaim(packetId, workItem, session, this.store.nowIso());
+    const evidenceEntries = evidenceAttachments.flatMap((attachment) => evidenceResources(attachment));
+    const manifestEntries = evidenceAttachments.map((attachment) => manifestEntry(attachment));
+    const claim = buildClaim(packetId, workItem, session, this.store.nowIso(), manifestEntries);
     const resources = [
       context.patient,
       context.coverage,
@@ -122,6 +142,7 @@ export class SubmissionService {
       ...context.conditions,
       ...context.observations,
       session.questionnaireResponse,
+      ...evidenceEntries,
       claim
     ].filter((resource): resource is FhirResource => Boolean(resource));
 
@@ -142,8 +163,9 @@ export class SubmissionService {
         }))
       },
       attachmentManifest: {
-        attachments: [],
-        missingFixtureReason: "No document fixtures in M3"
+        attachments: manifestEntries,
+        evidenceDigest: snapshot.evidenceDigest,
+        ...(manifestEntries.length === 0 ? { missingFixtureReason: "No accepted evidence attachments" as const } : {})
       },
       snapshot
     };
@@ -210,13 +232,19 @@ export class SubmissionService {
   }
 }
 
-function buildSnapshot(workItem: WorkItem, session: QuestionnaireSession): SubmissionPacketSnapshot {
+function buildSnapshot(
+  workItem: WorkItem,
+  session: QuestionnaireSession,
+  evidenceAttachments: EvidenceAttachment[]
+): SubmissionPacketSnapshot {
   return {
     workItemId: workItem.id,
     questionnaireResponseId: session.questionnaireResponse.id,
     questionnaireResponseRevision: session.revision,
     payerId: workItem.payerId,
-    packetSchemaVersion: PACKET_SCHEMA_VERSION
+    packetSchemaVersion: PACKET_SCHEMA_VERSION,
+    evidenceAttachmentIds: evidenceAttachments.map((attachment) => attachment.id),
+    evidenceDigest: evidenceDigest(evidenceAttachments)
   };
 }
 
@@ -224,7 +252,8 @@ function buildClaim(
   packetId: string,
   workItem: WorkItem,
   session: QuestionnaireSession,
-  createdAt: string
+  createdAt: string,
+  attachments: SubmissionAttachmentManifestEntry[]
 ): FhirResource {
   return {
     resourceType: "Claim",
@@ -259,7 +288,16 @@ function buildClaim(
         valueReference: {
           reference: `QuestionnaireResponse/${session.questionnaireResponse.id}`
         }
-      }
+      },
+      ...attachments.map((attachment, index) => ({
+        sequence: index + 2,
+        category: {
+          text: "Evidence attachment"
+        },
+        valueReference: {
+          reference: `DocumentReference/${attachment.documentReferenceId}`
+        }
+      }))
     ],
     item: [
       {
@@ -282,5 +320,28 @@ function buildClaim(
         valueString: PACKET_SCHEMA_VERSION
       }
     ]
+  };
+}
+
+function evidenceResources(attachment: EvidenceAttachment): FhirResource[] {
+  const resources = [attachment.documentReference as FhirResource];
+  if (attachment.binary) {
+    resources.push(attachment.binary as FhirResource);
+  }
+  return resources;
+}
+
+function manifestEntry(attachment: EvidenceAttachment): SubmissionAttachmentManifestEntry {
+  return {
+    evidenceAttachmentId: attachment.id,
+    documentReferenceId: String(attachment.documentReference.id ?? `docref-${attachment.id}`),
+    binaryId: attachment.binary?.id ? String(attachment.binary.id) : undefined,
+    title: attachment.title,
+    filename: attachment.filename,
+    contentType: attachment.contentType,
+    sizeBytes: attachment.sizeBytes,
+    sha256: attachment.sha256,
+    contentMode: attachment.contentMode,
+    source: attachment.source
   };
 }

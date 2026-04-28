@@ -58,7 +58,7 @@ function assertOutcome(error, statusCode, code) {
   assert.equal(error.outcome.issue[0].code, code);
 }
 
-test("DTR-like package creation returns Questionnaire, draft QuestionnaireResponse, metadata, and empty dependencies", () => {
+test("DTR-like package creation returns Questionnaire, draft QuestionnaireResponse, metadata, and fixture dependencies", () => {
   const { service, workItem } = createFixture();
   const pkg = service.getPackage(workItem.id);
 
@@ -69,11 +69,40 @@ test("DTR-like package creation returns Questionnaire, draft QuestionnaireRespon
   assert.equal(pkg.questionnaire.resourceType, "Questionnaire");
   assert.equal(pkg.questionnaireResponse.resourceType, "QuestionnaireResponse");
   assert.equal(pkg.questionnaireResponse.status, "in-progress");
-  assert.deepEqual(pkg.dependencies, { libraries: [], valueSets: [] });
+  assert.equal(pkg.dependencies.libraries[0].resourceType, "Library");
+  assert.equal(pkg.dependencies.valueSets[0].resourceType, "ValueSet");
   assert.ok(pkg.prefill.length >= 5);
   assert.equal(pkg.validation.valid, false);
   assert.ok(pkg.completion.requiredAnswered < pkg.completion.requiredTotal);
   assert.equal(pkg.session.revision, 1);
+});
+
+test("DTR standards package is Parameters-shaped with Questionnaire first and fixture expression results", () => {
+  const { service, workItem } = createFixture();
+  const standardsPackage = service.getStandardsPackage(workItem.id);
+  const bundle = standardsPackage.response.parameter.find((parameter) => parameter.name === "return").resource;
+
+  assert.equal(standardsPackage.conformance, false);
+  assert.equal(standardsPackage.mode, "local-non-conformant");
+  assert.equal(standardsPackage.response.resourceType, "Parameters");
+  assert.equal(bundle.resourceType, "Bundle");
+  assert.equal(bundle.entry[0].resource.resourceType, "Questionnaire");
+  assert.ok(bundle.entry.some((entry) => entry.resource.resourceType === "Library"));
+  assert.ok(bundle.entry.some((entry) => entry.resource.resourceType === "ValueSet"));
+  assert.ok(bundle.entry.some((entry) => entry.resource.resourceType === "QuestionnaireResponse"));
+  assert.ok(standardsPackage.expressionEvaluations.some((item) => item.expressionName === "mri.hasConservativeTherapyEvidence"));
+});
+
+test("unsupported local DTR fixture expressions fail visibly", () => {
+  const { service, workItem } = createFixture();
+
+  assert.throws(
+    () => service.evaluateFixtureExpression(workItem.id, "mri.notInTheAllowlist"),
+    (error) => {
+      assertOutcome(error, 400, "not-supported");
+      return true;
+    }
+  );
 });
 
 test("QuestionnaireResponse carries questionnaire canonical, patient subject, order basedOn, and work-item extension", () => {

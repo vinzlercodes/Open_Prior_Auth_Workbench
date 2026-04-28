@@ -291,6 +291,34 @@ export interface QuestionnairePackage {
   outcome?: LocalOperationOutcome;
 }
 
+export interface LocalDtrExpressionEvaluation {
+  expressionName: string;
+  language: "text/cql-identifier";
+  result: unknown;
+  source: "fixture-allowlist";
+}
+
+export interface LocalDtrStandardsPackage {
+  conformance: false;
+  mode: "local-non-conformant";
+  boundary: "dtr";
+  contractVersion: "m7.local-dtr-boundary.v1";
+  response: {
+    resourceType: "Parameters";
+    parameter: Array<{
+      name: string;
+      resource?: FhirBundle | FhirQuestionnaire | FhirQuestionnaireResponse | Record<string, unknown>;
+      valueString?: string;
+      part?: Array<{
+        name: string;
+        resource?: FhirBundle | FhirQuestionnaire | FhirQuestionnaireResponse | Record<string, unknown>;
+        valueString?: string;
+      }>;
+    }>;
+  };
+  expressionEvaluations: LocalDtrExpressionEvaluation[];
+}
+
 export interface QuestionnairePackageRequest {
   workItemId: string;
 }
@@ -323,18 +351,95 @@ export interface SubmissionPacketSnapshot {
   questionnaireResponseId: string;
   questionnaireResponseRevision: number;
   payerId: string;
-  packetSchemaVersion: "m3.local-pas-style.v1";
+  packetSchemaVersion: SubmissionPacketSchemaVersion;
+  evidenceAttachmentIds?: string[];
+  evidenceDigest?: string;
+}
+
+export type SubmissionPacketSchemaVersion = "m3.local-pas-style.v1" | "m7.local-pas-evidence.v1";
+
+export type EvidenceContentMode = "inline-base64" | "local-binary" | "local-reference" | "bundle-fixture";
+
+export type EvidenceStatus = "available" | "attached" | "accepted" | "removed" | "included-in-packet";
+
+export interface EvidenceAttachment {
+  id: string;
+  workItemId: string;
+  source: "fixture" | "upload";
+  fixtureId?: string;
+  status: EvidenceStatus;
+  contentMode: EvidenceContentMode;
+  title: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  sha256: string;
+  storageKey?: string;
+  inlineBase64?: string;
+  documentReference: Record<string, unknown>;
+  binary?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+  acceptedAt?: string;
+  removedAt?: string;
+  includedInPacketId?: string;
+}
+
+export interface EvidenceFixtureSummary {
+  fixtureId: string;
+  title: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  sha256: string;
+  contentMode: EvidenceContentMode;
+}
+
+export interface AttachEvidenceRequest {
+  fixtureId: string;
+  actorUserId?: string;
+}
+
+export interface UploadEvidenceRequest {
+  filename: string;
+  contentType: string;
+  base64Data: string;
+  sha256?: string;
+  title?: string;
+  actorUserId?: string;
+}
+
+export interface EvidenceListResponse {
+  conformance: false;
+  mode: "local-non-conformant";
+  workItemId: string;
+  availableFixtures: EvidenceFixtureSummary[];
+  attachments: EvidenceAttachment[];
+}
+
+export interface SubmissionAttachmentManifestEntry {
+  evidenceAttachmentId: string;
+  documentReferenceId: string;
+  binaryId?: string;
+  title: string;
+  filename: string;
+  contentType: string;
+  sizeBytes: number;
+  sha256: string;
+  contentMode: EvidenceContentMode;
+  source: "fixture" | "upload";
 }
 
 export interface SubmissionAttachmentManifest {
-  attachments: [];
-  missingFixtureReason: "No document fixtures in M3";
+  attachments: SubmissionAttachmentManifestEntry[];
+  evidenceDigest?: string;
+  missingFixtureReason?: "No document fixtures in M3" | "No accepted evidence attachments";
 }
 
 export interface SubmissionPacket {
   id: string;
   workItemId: string;
-  packetSchemaVersion: "m3.local-pas-style.v1";
+  packetSchemaVersion: SubmissionPacketSchemaVersion;
   builtAt: string;
   transport: "mock-pas";
   bundle: FhirBundle;
@@ -393,7 +498,12 @@ export type OperationEventType =
   | "more_info_requested"
   | "more_info_resolved"
   | "case_assigned"
-  | "case_cancelled";
+  | "case_cancelled"
+  | "evidence_attached"
+  | "evidence_uploaded"
+  | "evidence_accepted"
+  | "evidence_removed"
+  | "evidence_included_in_packet";
 
 export interface OperationEvent {
   id: string;
@@ -489,6 +599,20 @@ export interface PacketBuildRequest {
 export interface PacketSubmitRequest {
   packetId: string;
   actorUserId?: string;
+}
+
+export interface LocalStandardsBoundaryDescriptor {
+  boundary: "smart" | "crd" | "dtr" | "pas" | "evidence";
+  conformance: false;
+  mode: "local-non-conformant";
+  contractVersion: string;
+  notes: string[];
+}
+
+export interface LocalStandardsBoundaryResponse {
+  conformance: false;
+  mode: "local-non-conformant";
+  boundaries: LocalStandardsBoundaryDescriptor[];
 }
 
 export interface StatusEvent {

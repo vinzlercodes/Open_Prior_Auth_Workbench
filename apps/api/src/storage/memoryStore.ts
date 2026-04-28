@@ -1,5 +1,6 @@
 import type {
   AuditEvent,
+  EvidenceAttachment,
   MoreInfoRequest,
   OperationEvent,
   OperationEventType,
@@ -26,6 +27,7 @@ export class MemoryStore implements PriorAuthStore {
   private readonly operationEvents: OperationEvent[] = [];
   private readonly statusEvents: StatusEvent[] = [];
   private readonly auditLog: AuditEvent[] = [];
+  private readonly evidenceAttachments = new Map<string, EvidenceAttachment>();
   private statusEventCounter = 0;
   private auditEventCounter = 0;
   private operationEventCounter = 0;
@@ -342,6 +344,46 @@ export class MemoryStore implements PriorAuthStore {
       .filter((event) => event.workItemId === workItemId)
       .sort((first, second) => first.sequence - second.sequence)
       .map((event) => snapshot(event));
+  }
+
+  saveEvidenceAttachment(attachment: EvidenceAttachment, actor = "system", action = "evidence.saved"): EvidenceAttachment {
+    const previous = this.evidenceAttachments.get(attachment.id) ?? null;
+    this.evidenceAttachments.set(attachment.id, snapshot(attachment));
+    this.audit(actor, action, "EvidenceAttachment", attachment.id, previous, attachment, {
+      workItemId: attachment.workItemId
+    });
+    return snapshot(attachment);
+  }
+
+  getEvidenceAttachment(id: string): EvidenceAttachment | null {
+    const attachment = this.evidenceAttachments.get(id);
+    return attachment ? snapshot(attachment) : null;
+  }
+
+  getEvidenceAttachmentsForWorkItem(workItemId: string): EvidenceAttachment[] {
+    return [...this.evidenceAttachments.values()]
+      .filter((attachment) => attachment.workItemId === workItemId)
+      .sort((first, second) => first.createdAt.localeCompare(second.createdAt) || first.id.localeCompare(second.id))
+      .map((attachment) => snapshot(attachment));
+  }
+
+  markEvidenceIncludedInPacket(workItemId: string, evidenceId: string, packetId: string, actor = "system"): EvidenceAttachment {
+    const attachment = this.evidenceAttachments.get(evidenceId);
+    if (!attachment || attachment.workItemId !== workItemId) {
+      throw new Error(`Unknown evidence attachment: ${evidenceId}`);
+    }
+    const updated: EvidenceAttachment = {
+      ...attachment,
+      status: "included-in-packet",
+      includedInPacketId: packetId,
+      updatedAt: this.nowIso()
+    };
+    this.evidenceAttachments.set(evidenceId, updated);
+    this.audit(actor, "evidence.included_in_packet", "EvidenceAttachment", evidenceId, attachment, updated, {
+      workItemId,
+      packetId
+    });
+    return snapshot(updated);
   }
 
   hasWorkItems(): boolean {
