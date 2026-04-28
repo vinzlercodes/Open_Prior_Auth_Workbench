@@ -1,0 +1,59 @@
+{
+  "version": "2026.04",
+  "fixtures": [
+    {
+      "fixtureId": "fixture-pt-summary-inline",
+      "title": "Conservative Therapy Summary",
+      "filename": "conservative_therapy_summary.txt",
+      "contentType": "text/plain",
+      "contentMode": "inline-base64",
+      "sizeBytes": 112,
+      "sha256": "2a9179ddcee86e45b7b7e403dc71842b97b3dc69c863f7ed61ae3708c1162886",
+      "base64Data": "UGF0aWVudCBjb21wbGV0ZWQgc2l4IHdlZWtzIG9mIHN1cGVydmlzZWQgcGh5c2ljYWwgdGhlcmFweSBhbmQgTlNBSUQgdGhlcmFweSB3aXRoIHBlcnNpc3RlbnQgcmFkaWN1bGFyIHN5bXB0b21zLg=="
+    },
+    {
+      "fixtureId": "fixture-mri-note-binary",
+      "title": "MRI Medical Necessity Note",
+      "filename": "mri_medical_necessity_note.txt",
+      "contentType": "text/plain",
+      "contentMode": "local-binary",
+      "sizeBytes": 89,
+      "sha256": "3946ca2611690a1961dac81080d545d9742fb99810277518747ad51d8fa8917c",
+      "base64Data": "THVtYmFyIE1SSSBwcmlvciBhdXRob3JpemF0aW9uIG5vdGU6IHBlcnNpc3RlbnQgc3ltcHRvbXMgZGVzcGl0ZSBjb25zZXJ2YXRpdmUgbWFuYWdlbWVudC4="
+    },
+    {
+      "fixtureId": "fixture-synthetic-pdf-binary",
+      "title": "Synthetic Prior Authorization PDF",
+      "filename": "synthetic_prior_auth.pdf",
+      "contentType": "application/pdf",
+      "contentMode": "local-binary",
+      "sizeBytes": 90,
+      "sha256": "b9edaa1521d03fe6d45039fe7a417640524642f7a4657155aeee4087b1aa4999",
+      "base64Data": "JVBERi0xLjQKJSBTeW50aGV0aWMgTVJJIHByaW9yIGF1dGggUERGIGZpeHR1cmUKMSAwIG9iaiA8PCAvVHlwZSAvQ2F0YWxvZyA+PiBlbmRvYmoKJSVFT0YK"
+    },
+    {
+      "fixtureId": "fixture-bundle-smoke",
+      "title": "Bundle-like Evidence Package Smoke Fixture",
+      "filename": "bundle_like_evidence.json",
+      "contentType": "application/fhir+json",
+      "contentMode": "bundle-fixture",
+      "sizeBytes": 0,
+      "sha256": "fixture-bundle-smoke",
+      "bundle": {
+        "resourceType": "Bundle",
+        "id": "bundle-like-evidence-smoke",
+        "type": "collection",
+        "entry": [
+          {
+            "resource": {
+              "resourceType": "DocumentReference",
+              "id": "docref-bundle-smoke",
+              "status": "current",
+              "description": "Synthetic bundle-like evidence package reserved for M8 product support."
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

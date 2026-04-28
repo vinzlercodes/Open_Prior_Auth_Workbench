@@ -1,0 +1,79 @@
+{
+  "questionnaire": "http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04",
+  "libraries": [
+    {
+      "resourceType": "Library",
+      "id": "library-mri-lumbar-spine-dtr-logic",
+      "url": "http://openpriorauth.local/fhir/Library/mri-lumbar-spine-dtr-logic",
+      "version": "2026.04",
+      "status": "active",
+      "type": {
+        "coding": [
+          {
+            "system": "http://terminology.hl7.org/CodeSystem/library-type",
+            "code": "logic-library"
+          }
+        ]
+      },
+      "relatedArtifact": [
+        {
+          "type": "depends-on",
+          "resource": "http://openpriorauth.local/fhir/ValueSet/clinical-urgency|2026.04"
+        }
+      ],
+      "content": [
+        {
+          "contentType": "text/cql",
+          "data": "Ly8gTXkgZml4dHVyZS1vbmx5IENRTCBwbGFjZWhvbGRlci4="
+        }
+      ],
+      "extension": [
+        {
+          "url": "http://openpriorauth.local/fhir/StructureDefinition/local-fixture-expression",
+          "valueString": "mri.hasConservativeTherapyEvidence"
+        },
+        {
+          "url": "http://openpriorauth.local/fhir/StructureDefinition/local-fixture-expression",
+          "valueString": "mri.priorSurgeryDetailsRequired"
+        }
+      ]
+    }
+  ],
+  "valueSets": [
+    {
+      "resourceType": "ValueSet",
+      "id": "valueset-clinical-urgency",
+      "url": "http://openpriorauth.local/fhir/ValueSet/clinical-urgency",
+      "version": "2026.04",
+      "status": "active",
+      "name": "ClinicalUrgency",
+      "compose": {
+        "include": [
+          {
+            "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+            "concept": [
+              {
+                "code": "routine",
+                "display": "Routine"
+              },
+              {
+                "code": "urgent",
+                "display": "Urgent"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "fixtureExpressions": [
+    {
+      "name": "mri.hasConservativeTherapyEvidence",
+      "description": "True when the checked-in context includes the conservative-treatment Observation used by the MRI questionnaire."
+    },
+    {
+      "name": "mri.priorSurgeryDetailsRequired",
+      "description": "True when the QuestionnaireResponse says prior lumbar spine surgery is true."
+    }
+  ]
+}
