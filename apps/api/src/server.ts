@@ -1,6 +1,7 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import type {
+  AttachEvidenceRequest,
   MoreInfoRequestCreateRequest,
   PacketBuildRequest,
   PacketSubmitRequest,
@@ -8,9 +9,11 @@ import type {
   QuestionnairePackageRequest,
   QuestionnaireResponseSaveRequest,
   RequirementEvaluationRequest,
+  UploadEvidenceRequest,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
+import { EvidenceRepository } from "./evidence/evidenceRepository.js";
 import { OperationOutcomeError } from "./errors.js";
 import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
@@ -52,6 +55,7 @@ async function routeRequest(
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   const operationsService = new OperationsService(store);
+  const evidenceRepository = new EvidenceRepository(store);
 
   if (request.method === "OPTIONS") {
     sendJson(response, 204, {});
@@ -67,6 +71,29 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/standards/boundaries") {
+    sendJson(response, 200, adapters.boundaries());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/.well-known/smart-configuration") {
+    sendJson(response, 200, adapters.launch.smartConfiguration());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/smart/launch") {
+    sendJson(response, 200, adapters.launch.resolveLaunchContext({
+      patientId: url.searchParams.get("patient") ?? undefined
+    }));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/smart/token") {
+    const body = await readJson<{ patientId?: string }>(request);
+    sendJson(response, 200, adapters.launch.resolveLaunchContext({ patientId: body.patientId }));
+    return;
+  }
+
   const contextMatch = url.pathname.match(/^\/context\/patient\/([^/]+)$/);
   if (request.method === "GET" && contextMatch) {
     sendJson(response, 200, adapters.launch.getPatientContext(decodeURIComponent(contextMatch[1])));
@@ -76,6 +103,12 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/requirements/evaluate") {
     const body = await readJson<RequirementEvaluationRequest>(request);
     sendJson(response, 200, adapters.crd.evaluate(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/crd/evaluate") {
+    const body = await readJson<RequirementEvaluationRequest>(request);
+    sendJson(response, 200, adapters.crd.evaluateCoverageRequirements(body));
     return;
   }
 
@@ -133,6 +166,18 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/dtr/questionnaire-package") {
+    const body = await readJson<QuestionnairePackageRequest>(request);
+    sendJson(response, 200, adapters.dtr.getStandardsPackage(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/dtr/evaluate-fixture-expression") {
+    const body = await readJson<{ workItemId: string; expressionName: string }>(request);
+    sendJson(response, 200, adapters.dtr.evaluateFixtureExpression(body));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/dtr/save-response") {
     const body = await readJson<QuestionnaireResponseSaveRequest>(request);
     sendJson(response, 200, adapters.dtr.saveResponse(body));
@@ -145,9 +190,63 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/pas/build-submission") {
+    const body = await readJson<PacketBuildRequest>(request);
+    sendJson(response, 200, adapters.pas.buildSubmission(body));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/pas/submit") {
     const body = await readJson<PacketSubmitRequest>(request);
     sendJson(response, 200, adapters.pas.submitPacket(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/pas/submit-local") {
+    const body = await readJson<PacketSubmitRequest>(request);
+    sendJson(response, 200, adapters.pas.submit(body));
+    return;
+  }
+
+  const evidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence$/);
+  if (request.method === "GET" && evidenceMatch) {
+    sendJson(response, 200, evidenceRepository.listEvidenceForWorkItem(decodeURIComponent(evidenceMatch[1])));
+    return;
+  }
+
+  const attachFixtureMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/attach-fixture$/);
+  if (request.method === "POST" && attachFixtureMatch) {
+    const body = await readJson<AttachEvidenceRequest>(request);
+    sendJson(response, 201, evidenceRepository.attachFixture(decodeURIComponent(attachFixtureMatch[1]), body));
+    return;
+  }
+
+  const uploadEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/upload$/);
+  if (request.method === "POST" && uploadEvidenceMatch) {
+    const body = await readJson<UploadEvidenceRequest>(request);
+    sendJson(response, 201, evidenceRepository.uploadEvidence(decodeURIComponent(uploadEvidenceMatch[1]), body));
+    return;
+  }
+
+  const acceptEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/([^/]+)\/accept$/);
+  if (request.method === "POST" && acceptEvidenceMatch) {
+    const body = await readJson<{ actorUserId?: string }>(request);
+    sendJson(response, 200, evidenceRepository.acceptEvidence(
+      decodeURIComponent(acceptEvidenceMatch[1]),
+      decodeURIComponent(acceptEvidenceMatch[2]),
+      body.actorUserId
+    ));
+    return;
+  }
+
+  const removeEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/([^/]+)\/remove$/);
+  if (request.method === "POST" && removeEvidenceMatch) {
+    const body = await readJson<{ actorUserId?: string }>(request);
+    sendJson(response, 200, evidenceRepository.removeEvidence(
+      decodeURIComponent(removeEvidenceMatch[1]),
+      decodeURIComponent(removeEvidenceMatch[2]),
+      body.actorUserId
+    ));
     return;
   }
 

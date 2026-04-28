@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { evaluateRequirement } from "../apps/api/dist/evaluation/evaluate.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
@@ -195,3 +196,176 @@ test("SQLite constraints preserve packet and receipt idempotency", () => withTem
   assert.equal(fixture.store.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 1);
   fixture.store.close();
 }));
+
+test("SQLite migration v1 to v2 preserves older M6 packets without evidence manifests", () => withTempDb((path) => {
+  createM6DatabaseFixture(path);
+  const store = new SqliteStore(path, () => new Date("2026-04-25T12:00:00.000Z"));
+  const packet = store.getSubmissionPacket("packet-m6-fixture");
+  const receipt = store.getSubmissionReceiptByPacketId("packet-m6-fixture");
+  const migrations = new DatabaseSync(path, { readBigInts: false, returnArrays: false });
+  const version = migrations.prepare("SELECT MAX(version) AS version FROM schema_migrations").get().version;
+  const evidenceTables = migrations.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'evidence_attachments'").all();
+
+  assert.equal(version, 2);
+  assert.equal(evidenceTables.length, 1);
+  assert.equal(packet.id, "packet-m6-fixture");
+  assert.equal(packet.packetSchemaVersion, "m3.local-pas-style.v1");
+  assert.equal(packet.attachmentManifest.attachments.length, 0);
+  assert.equal(packet.attachmentManifest.missingFixtureReason, "No document fixtures in M3");
+  assert.equal(receipt.receiptId, "receipt-m6-fixture");
+  migrations.close();
+  store.close();
+}));
+
+function createM6DatabaseFixture(path) {
+  const db = new DatabaseSync(path, {
+    enableForeignKeyConstraints: true,
+    readBigInts: false,
+    returnArrays: false
+  });
+  const request = goldenScenario.request;
+  const result = {
+    ...goldenScenario.expected,
+    determinism: "deterministic",
+    requestSummary: {
+      patientName: "Elena Rivera",
+      serviceDescription: "MRI lumbar spine without contrast",
+      payerName: "Acme Health Plan"
+    },
+    questionnaireCanonicals: ["http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04"],
+    missingData: [],
+    explanatoryNotes: []
+  };
+  const snapshot = {
+    workItemId: "wi-m6-fixture",
+    questionnaireResponseId: "qr-m6-fixture",
+    questionnaireResponseRevision: 1,
+    payerId: "acme-health",
+    packetSchemaVersion: "m3.local-pas-style.v1"
+  };
+  db.exec(`
+    CREATE TABLE schema_migrations (
+      version INTEGER PRIMARY KEY,
+      applied_at TEXT NOT NULL CHECK (length(applied_at) > 0)
+    ) STRICT;
+    INSERT INTO schema_migrations (version, applied_at) VALUES (1, '2026-04-25T12:00:00.000Z');
+
+    CREATE TABLE requirement_runs (
+      evaluation_id TEXT PRIMARY KEY NOT NULL,
+      request_json TEXT NOT NULL CHECK (json_valid(request_json)),
+      result_json TEXT NOT NULL CHECK (json_valid(result_json)),
+      created_at TEXT NOT NULL CHECK (length(created_at) > 0)
+    ) STRICT;
+
+    CREATE TABLE work_items (
+      id TEXT PRIMARY KEY NOT NULL,
+      evaluation_id TEXT NOT NULL UNIQUE REFERENCES requirement_runs(evaluation_id) ON DELETE RESTRICT,
+      patient_id TEXT NOT NULL,
+      coverage_id TEXT NOT NULL,
+      request_resource_type TEXT NOT NULL CHECK (request_resource_type IN ('ServiceRequest','MedicationRequest','DeviceRequest')),
+      request_resource_id TEXT NOT NULL,
+      service_line TEXT NOT NULL,
+      payer_id TEXT NOT NULL,
+      owner_user_id TEXT,
+      status TEXT NOT NULL,
+      created_at TEXT NOT NULL CHECK (length(created_at) > 0),
+      requirement_result_json TEXT NOT NULL CHECK (json_valid(requirement_result_json))
+    ) STRICT;
+
+    CREATE TABLE submission_packets (
+      id TEXT PRIMARY KEY NOT NULL,
+      work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+      packet_schema_version TEXT NOT NULL CHECK (packet_schema_version = 'm3.local-pas-style.v1'),
+      built_at TEXT NOT NULL,
+      transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
+      bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
+      attachment_manifest_json TEXT NOT NULL CHECK (json_valid(attachment_manifest_json)),
+      snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+      snapshot_work_item_id TEXT NOT NULL,
+      snapshot_questionnaire_response_id TEXT NOT NULL,
+      snapshot_questionnaire_response_revision INTEGER NOT NULL CHECK (snapshot_questionnaire_response_revision >= 1),
+      snapshot_payer_id TEXT NOT NULL,
+      UNIQUE (
+        snapshot_work_item_id,
+        snapshot_questionnaire_response_id,
+        snapshot_questionnaire_response_revision,
+        snapshot_payer_id,
+        packet_schema_version
+      )
+    ) STRICT;
+
+    CREATE TABLE operation_events (
+      id TEXT PRIMARY KEY NOT NULL,
+      work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+      type TEXT NOT NULL CHECK (type IN ('payer_status_recorded','more_info_requested','more_info_resolved','case_assigned','case_cancelled')),
+      actor TEXT NOT NULL CHECK (actor IN ('user','mock-payer','system')),
+      created_at TEXT NOT NULL,
+      details_json TEXT NOT NULL CHECK (json_valid(details_json))
+    ) STRICT;
+
+    CREATE TABLE submission_receipts (
+      receipt_id TEXT PRIMARY KEY NOT NULL,
+      packet_id TEXT NOT NULL UNIQUE REFERENCES submission_packets(id) ON DELETE CASCADE,
+      tracking_id TEXT NOT NULL,
+      submitted_at TEXT NOT NULL,
+      transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
+      idempotent INTEGER NOT NULL CHECK (idempotent IN (0, 1)),
+      response_bundle_json TEXT NOT NULL CHECK (json_valid(response_bundle_json))
+    ) STRICT;
+  `);
+  db.prepare("INSERT INTO requirement_runs (evaluation_id, request_json, result_json, created_at) VALUES (?, ?, ?, ?)")
+    .run("eval-m6-fixture", JSON.stringify(request), JSON.stringify(result), "2026-04-25T12:00:00.000Z");
+  db.prepare(`
+    INSERT INTO work_items (
+      id, evaluation_id, patient_id, coverage_id, request_resource_type, request_resource_id,
+      service_line, payer_id, owner_user_id, status, created_at, requirement_result_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    "wi-m6-fixture",
+    "eval-m6-fixture",
+    request.patientId,
+    request.coverageId,
+    request.requestResourceType,
+    request.requestResourceId,
+    request.serviceLine,
+    request.payerId,
+    "m6-test-operator",
+    "packet_ready",
+    "2026-04-25T12:00:00.000Z",
+    JSON.stringify(result)
+  );
+  db.prepare(`
+    INSERT INTO submission_packets (
+      id, work_item_id, packet_schema_version, built_at, transport, bundle_json,
+      attachment_manifest_json, snapshot_json, snapshot_work_item_id,
+      snapshot_questionnaire_response_id, snapshot_questionnaire_response_revision, snapshot_payer_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    "packet-m6-fixture",
+    "wi-m6-fixture",
+    "m3.local-pas-style.v1",
+    "2026-04-25T12:00:00.000Z",
+    "mock-pas",
+    JSON.stringify({ resourceType: "Bundle", id: "bundle-m6-fixture", type: "collection", entry: [] }),
+    JSON.stringify({ attachments: [], missingFixtureReason: "No document fixtures in M3" }),
+    JSON.stringify(snapshot),
+    snapshot.workItemId,
+    snapshot.questionnaireResponseId,
+    snapshot.questionnaireResponseRevision,
+    snapshot.payerId
+  );
+  db.prepare(`
+    INSERT INTO submission_receipts (
+      receipt_id, packet_id, tracking_id, submitted_at, transport, idempotent, response_bundle_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    "receipt-m6-fixture",
+    "packet-m6-fixture",
+    "mock-pas-m6-fixture",
+    "2026-04-25T12:01:00.000Z",
+    "mock-pas",
+    0,
+    JSON.stringify({ resourceType: "Bundle", id: "bundle-receipt-m6-fixture", type: "collection", entry: [] })
+  );
+  db.close();
+}

@@ -1,5 +1,6 @@
 import type {
   AuditEvent,
+  EvidenceAttachment,
   MoreInfoRequest,
   OperationEvent,
   OperationEventType,
@@ -64,6 +65,10 @@ export interface PriorAuthStore {
   getOperationEventsForWorkItem(workItemId: string): OperationEvent[];
   getStatusEvents(workItemId: string): StatusEvent[];
   getAuditEventsForWorkItem(workItemId: string): AuditEvent[];
+  saveEvidenceAttachment(attachment: EvidenceAttachment, actor?: string, action?: string): EvidenceAttachment;
+  getEvidenceAttachment(id: string): EvidenceAttachment | null;
+  getEvidenceAttachmentsForWorkItem(workItemId: string): EvidenceAttachment[];
+  markEvidenceIncludedInPacket(workItemId: string, evidenceId: string, packetId: string, actor?: string): EvidenceAttachment;
   hasWorkItems(): boolean;
 }
 
