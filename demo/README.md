@@ -1,6 +1,6 @@
-# Demo Guide: M1 to M6 Open Prior Auth Workbench
+# Demo Guide: M1 to M7 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M6 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, and M6 makes local case state survive API restarts through SQLite. Each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M7 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, and M7 adds local evidence attachments and DTR dependency fixtures. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
@@ -8,6 +8,7 @@ This guide walks through every demo piece from M1 through M6 using only syntheti
 - M4: operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
+- M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards-shaped aliases with explicit non-conformance metadata.
 
 No real PHI is required or expected.
 
@@ -18,6 +19,8 @@ No real PHI is required or expected.
 - Missing-evidence FHIR bundle: `data/seed/mri_lumbar_spine_missing_evidence/fhir-bundle.json`
 - Payer rule pack: `data/payer-rules/mri-lumbar-spine.acme-health.v1.json`
 - Questionnaire fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`
+- DTR dependency fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`
+- Evidence fixtures: `data/evidence/mri-lumbar-spine.evidence-fixtures.json`
 
 The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 
@@ -65,7 +68,7 @@ Open the app:
 http://localhost:3000
 ```
 
-The API defaults to `http://127.0.0.1:4000`. The API store is SQLite-backed at `.data/open-prior-auth.sqlite`; use `OPEN_PRIOR_AUTH_DB_PATH` to point at another local database file. Restarting `npm run dev:api` preserves work items, questionnaire sessions, packets, receipts, status events, operations history, and audit events. Use `npm run db:reset` when you want a clean demo state.
+The API defaults to `http://127.0.0.1:4000`. The API store is SQLite-backed at `.data/open-prior-auth.sqlite`; use `OPEN_PRIOR_AUTH_DB_PATH` to point at another local database file. M7 uploads write synthetic evidence bytes to `.data/evidence-uploads/`; use `OPEN_PRIOR_AUTH_EVIDENCE_UPLOAD_DIR` to point at another ignored local directory. Restarting `npm run dev:api` preserves work items, questionnaire sessions, packets, receipts, evidence metadata, status events, operations history, and audit events. Use `npm run db:reset` when you want a clean demo state.
 
 ## M6: Restart Survival Check
 
@@ -79,6 +82,27 @@ M6 proves the local durable case core:
 6. Reopen the web app and confirm the queue row, status timeline, packet receipt, operations history, and audit trail are still present.
 
 JSON remains the fixture and demo snapshot format. SQLite is the runtime source of truth for local case state.
+
+## M7: Evidence Attachments And Standards Aliases
+
+After creating a work item and opening the form workspace:
+
+1. Click `Refresh evidence`.
+2. Attach one or more synthetic evidence fixtures, or upload the local text evidence note.
+3. Accept the evidence entries that should be included in the packet.
+4. Complete the questionnaire and click `Mark ready`.
+5. Click `Build packet`.
+6. Confirm the packet panel shows a non-zero attachment count.
+7. Confirm the audit trail includes evidence attach, upload, accept, and include-in-packet events.
+
+The standards-shaped aliases can be inspected locally:
+
+```bash
+curl -s "$API_BASE/standards/boundaries" | jq
+curl -s "$API_BASE/.well-known/smart-configuration" | jq
+```
+
+Every standards-shaped alias is local and explicitly non-conformant.
 
 ## API Helper Setup
 
