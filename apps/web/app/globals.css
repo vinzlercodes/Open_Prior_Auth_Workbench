@@ -144,6 +144,10 @@ h2 {
   grid-column: 2 / span 2;
 }
 
+.evidencePanel {
+  grid-column: 2 / span 2;
+}
+
 .formPanel {
   grid-column: 2 / span 2;
   min-height: 320px;
@@ -263,6 +267,63 @@ h2 {
   margin-top: 18px;
   border-top: 1px solid #edf1ef;
   padding-top: 14px;
+}
+
+.evidenceFixtures,
+.evidenceList {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.uploadBox {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr) 180px;
+  gap: 10px;
+  align-items: end;
+  margin-bottom: 14px;
+}
+
+.uploadBox label {
+  display: grid;
+  gap: 6px;
+  color: #5b6862;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.evidenceRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(140px, 0.8fr) minmax(160px, 0.6fr);
+  gap: 10px;
+  border-top: 1px solid #edf1ef;
+  padding-top: 10px;
+}
+
+.evidenceRow span {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.evidenceRow strong,
+.evidenceRow em {
+  overflow-wrap: anywhere;
+}
+
+.evidenceRow strong {
+  font-size: 13px;
+}
+
+.evidenceRow em {
+  color: #5b6862;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.evidenceActions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .metric {
@@ -536,6 +597,10 @@ h2 {
     grid-column: auto;
   }
 
+  .evidencePanel {
+    grid-column: auto;
+  }
+
   .formPanel {
     grid-column: auto;
   }
@@ -547,7 +612,9 @@ h2 {
   }
 
   .queueFilters,
-  .queueRow {
+  .queueRow,
+  .uploadBox,
+  .evidenceRow {
     grid-template-columns: 1fr;
   }
 
