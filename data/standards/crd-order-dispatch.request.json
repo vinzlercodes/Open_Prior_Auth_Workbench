@@ -1,0 +1,14 @@
+{
+  "hook": "order-dispatch",
+  "hookInstance": "m8-order-dispatch-fixture",
+  "fhirServer": "http://localhost:4000/fhir",
+  "context": {
+    "userId": "Practitioner/practitioner-ortho-001",
+    "patientId": "patient-mri-001",
+    "coverageId": "coverage-acme-001",
+    "orderId": "servicerequest-mri-lumbar-001",
+    "payerId": "acme-health",
+    "serviceLine": "mri_lumbar_spine",
+    "performer": "Organization/northstar-imaging"
+  }
+}

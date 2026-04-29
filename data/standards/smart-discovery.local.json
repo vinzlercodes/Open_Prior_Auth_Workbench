@@ -1,0 +1,9 @@
+{
+  "conformance": false,
+  "productionConformance": false,
+  "mode": "local-non-conformant",
+  "authorization_endpoint": "http://localhost:4000/smart/authorize",
+  "token_endpoint": "http://localhost:4000/smart/token",
+  "capabilities": ["launch-ehr", "client-public"],
+  "scopes_supported": ["launch", "patient/*.read", "openid", "fhirUser"]
+}

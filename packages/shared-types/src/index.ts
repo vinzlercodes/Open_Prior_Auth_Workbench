@@ -346,6 +346,67 @@ export interface FhirBundle {
   }>;
 }
 
+export interface FhirParameters {
+  resourceType: "Parameters";
+  parameter?: Array<{
+    name: string;
+    resource?: FhirBundle | FhirQuestionnaire | FhirQuestionnaireResponse | Record<string, unknown>;
+    valueString?: string;
+    valueUri?: string;
+    valueBoolean?: boolean;
+    part?: Array<{
+      name: string;
+      resource?: FhirBundle | FhirQuestionnaire | FhirQuestionnaireResponse | Record<string, unknown>;
+      valueString?: string;
+      valueUri?: string;
+      valueBoolean?: boolean;
+    }>;
+  }>;
+}
+
+export interface SmartDiscoveryMetadata {
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+  authorization_endpoint: string;
+  token_endpoint: string;
+  capabilities: string[];
+  scopes_supported: string[];
+}
+
+export type CdsHooksPrimaryHook = "appointment-book" | "order-dispatch" | "order-sign";
+
+export interface CdsServiceDescriptor {
+  hook: CdsHooksPrimaryHook;
+  id: string;
+  title: string;
+  description: string;
+  prefetch?: Record<string, string>;
+}
+
+export interface CdsServicesResponse {
+  services: CdsServiceDescriptor[];
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+}
+
+export interface CdsHooksRequest {
+  hook: CdsHooksPrimaryHook;
+  hookInstance: string;
+  fhirServer?: string;
+  context: Record<string, unknown>;
+  prefetch?: Record<string, unknown>;
+}
+
+export interface CdsHooksResponse {
+  cards: Array<Record<string, unknown>>;
+  systemActions: Array<Record<string, unknown>>;
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+}
+
 export interface SubmissionPacketSnapshot {
   workItemId: string;
   questionnaireResponseId: string;

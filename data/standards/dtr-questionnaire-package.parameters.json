@@ -1,0 +1,21 @@
+{
+  "resourceType": "Parameters",
+  "parameter": [
+    {
+      "name": "coverageId",
+      "valueString": "coverage-acme-001"
+    },
+    {
+      "name": "patientId",
+      "valueString": "patient-mri-001"
+    },
+    {
+      "name": "requestResourceId",
+      "valueString": "servicerequest-mri-lumbar-001"
+    },
+    {
+      "name": "questionnaire",
+      "valueUri": "http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "hook": "order-sign",
+  "hookInstance": "m8-order-sign-fixture",
+  "fhirServer": "http://localhost:4000/fhir",
+  "context": {
+    "userId": "Practitioner/practitioner-ortho-001",
+    "patientId": "patient-mri-001",
+    "coverageId": "coverage-acme-001",
+    "requestResourceId": "servicerequest-mri-lumbar-001",
+    "payerId": "acme-health",
+    "serviceLine": "mri_lumbar_spine"
+  },
+  "prefetch": {
+    "draftOrders": {
+      "resourceType": "Bundle",
+      "id": "m8-crd-order-sign-draft-orders",
+      "type": "collection",
+      "entry": [
+        {
+          "resource": {
+            "resourceType": "ServiceRequest",
+            "id": "servicerequest-mri-lumbar-001",
+            "status": "active",
+            "intent": "order",
+            "subject": {
+              "reference": "Patient/patient-mri-001"
+            },
+            "code": {
+              "text": "MRI lumbar spine without contrast"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

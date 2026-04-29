@@ -1,0 +1,54 @@
+{
+  "resourceType": "Bundle",
+  "id": "m8-pas-claim-submit-request",
+  "type": "collection",
+  "entry": [
+    {
+      "fullUrl": "urn:uuid:Patient-patient-mri-001",
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-mri-001"
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:Coverage-coverage-acme-001",
+      "resource": {
+        "resourceType": "Coverage",
+        "id": "coverage-acme-001",
+        "status": "active",
+        "beneficiary": {
+          "reference": "Patient/patient-mri-001"
+        }
+      }
+    },
+    {
+      "fullUrl": "urn:uuid:Claim-m8-pas-claim-request",
+      "resource": {
+        "resourceType": "Claim",
+        "id": "m8-pas-claim-request",
+        "status": "active",
+        "use": "preauthorization",
+        "patient": {
+          "reference": "Patient/patient-mri-001"
+        },
+        "insurance": [
+          {
+            "sequence": 1,
+            "focal": true,
+            "coverage": {
+              "reference": "Coverage/coverage-acme-001"
+            }
+          }
+        ],
+        "item": [
+          {
+            "sequence": 1,
+            "productOrService": {
+              "text": "MRI lumbar spine without contrast"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
