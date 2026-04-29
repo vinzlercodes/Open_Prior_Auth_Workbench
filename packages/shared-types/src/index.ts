@@ -665,6 +665,7 @@ export interface PacketSubmitRequest {
 export interface LocalStandardsBoundaryDescriptor {
   boundary: "smart" | "crd" | "dtr" | "pas" | "evidence";
   conformance: false;
+  productionConformance: false;
   mode: "local-non-conformant";
   contractVersion: string;
   notes: string[];
@@ -672,6 +673,7 @@ export interface LocalStandardsBoundaryDescriptor {
 
 export interface LocalStandardsBoundaryResponse {
   conformance: false;
+  productionConformance: false;
   mode: "local-non-conformant";
   boundaries: LocalStandardsBoundaryDescriptor[];
 }

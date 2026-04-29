@@ -2,6 +2,9 @@ import { createServer as createHttpServer, type IncomingMessage, type ServerResp
 import { URL } from "node:url";
 import type {
   AttachEvidenceRequest,
+  CdsHooksRequest,
+  FhirBundle,
+  FhirParameters,
   MoreInfoRequestCreateRequest,
   PacketBuildRequest,
   PacketSubmitRequest,
@@ -14,7 +17,7 @@ import type {
 } from "@open-prior-auth/shared-types";
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
 import { EvidenceRepository } from "./evidence/evidenceRepository.js";
-import { OperationOutcomeError } from "./errors.js";
+import { OperationOutcomeError, operationOutcome } from "./errors.js";
 import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
 import { OperationsService } from "./operations/operationsService.js";
@@ -37,6 +40,10 @@ export function createServer(dependencies: ApiDependencies = {}) {
     } catch (error) {
       if (error instanceof OperationOutcomeError) {
         sendJson(response, error.statusCode, error.outcome);
+        return;
+      }
+      if (error instanceof SyntaxError) {
+        sendJson(response, 400, operationOutcome("error", "invalid", "Request body is not valid JSON."));
         return;
       }
       sendJson(response, 500, {
@@ -81,6 +88,11 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/fhir/.well-known/smart-configuration") {
+    sendJson(response, 200, adapters.launch.smartConfiguration());
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/smart/launch") {
     sendJson(response, 200, adapters.launch.resolveLaunchContext({
       patientId: url.searchParams.get("patient") ?? undefined
@@ -109,6 +121,18 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/crd/evaluate") {
     const body = await readJson<RequirementEvaluationRequest>(request);
     sendJson(response, 200, adapters.crd.evaluateCoverageRequirements(body));
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/cds-services") {
+    sendJson(response, 200, adapters.crd.services());
+    return;
+  }
+
+  const cdsServiceMatch = url.pathname.match(/^\/cds-services\/([^/]+)$/);
+  if (request.method === "POST" && cdsServiceMatch) {
+    const body = await readJson<CdsHooksRequest>(request);
+    sendJson(response, 200, adapters.crd.evaluateCdsService(decodeURIComponent(cdsServiceMatch[1]), body));
     return;
   }
 
@@ -172,6 +196,12 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/fhir/Questionnaire/$questionnaire-package") {
+    const body = await readJson<FhirParameters>(request);
+    sendJson(response, 200, adapters.dtr.questionnairePackageOperation(body));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/dtr/evaluate-fixture-expression") {
     const body = await readJson<{ workItemId: string; expressionName: string }>(request);
     sendJson(response, 200, adapters.dtr.evaluateFixtureExpression(body));
@@ -205,6 +235,12 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/pas/submit-local") {
     const body = await readJson<PacketSubmitRequest>(request);
     sendJson(response, 200, adapters.pas.submit(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/fhir/Claim/$submit") {
+    const body = await readJson<FhirBundle>(request);
+    sendJson(response, 200, adapters.pas.claimSubmitOperation(body));
     return;
   }
 
