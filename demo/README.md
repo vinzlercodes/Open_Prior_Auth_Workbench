@@ -1,6 +1,6 @@
-# Demo Guide: M1 to M7 Open Prior Auth Workbench
+# Demo Guide: M1 to M8 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M7 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, and M7 adds local evidence attachments and DTR dependency fixtures. Each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M8 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, M7 adds local evidence attachments and DTR dependency fixtures, and M8 adds a fixture-backed SMART/CRD/DTR/PAS standards harness. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
@@ -9,6 +9,7 @@ This guide walks through every demo piece from M1 through M7 using only syntheti
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
 - M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards-shaped aliases with explicit non-conformance metadata.
+- M8: SMART discovery under the FHIR base URL, CDS Hooks CRD primary hook fixtures, DTR `packagebundle` Parameters, and direct PAS ClaimResponse Bundles.
 
 No real PHI is required or expected.
 
@@ -21,6 +22,7 @@ No real PHI is required or expected.
 - Questionnaire fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`
 - DTR dependency fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`
 - Evidence fixtures: `data/evidence/mri-lumbar-spine.evidence-fixtures.json`
+- Standards fixtures: `data/standards/`
 
 The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 
@@ -103,6 +105,31 @@ curl -s "$API_BASE/.well-known/smart-configuration" | jq
 ```
 
 Every standards-shaped alias is local and explicitly non-conformant.
+
+## M8: Standards Conformance Fixture Harness
+
+M8 adds standards-shaped fixture routes without changing the local workbench aliases:
+
+```bash
+curl -s "$API_BASE/fhir/.well-known/smart-configuration" | jq
+curl -s "$API_BASE/cds-services" | jq
+curl -s "$API_BASE/cds-services/open-prior-auth-order-sign" \
+  -H "content-type: application/json" \
+  -d @data/standards/crd-order-sign.request.json | jq
+curl -s "$API_BASE/fhir/Questionnaire/\$questionnaire-package" \
+  -H "content-type: application/json" \
+  -d @data/standards/dtr-questionnaire-package.parameters.json | jq
+curl -s "$API_BASE/fhir/Claim/\$submit" \
+  -H "content-type: application/json" \
+  -d @data/standards/pas-claim-submit.bundle.json | jq
+```
+
+Expected M8 proof points:
+
+- SMART discovery includes local OAuth endpoint metadata and `productionConformance: false`.
+- CRD primary hooks return coverage information in `systemActions`.
+- DTR returns `Parameters` with `packagebundle` collection Bundles.
+- PAS returns a direct Bundle containing a ClaimResponse.
 
 ## API Helper Setup
 

@@ -47,14 +47,15 @@ npm run demo:seed
 - M5: adds OSS polish for external builders: contributor docs, humble security reporting guidance, CI, fixture indexes, deterministic screenshots, and docs-only automation recipes.
 - M6: replaces the runtime in-memory store with a constrained SQLite repository, adds explicit transaction boundaries for case lifecycle writes, keeps `MemoryStore` for tests only, and introduces local standards-shaped launch/CRD/DTR/PAS adapter boundaries.
 - M7: adds local synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet DTR dependencies, standards-shaped non-conformant aliases, and SQLite schema v2 evidence metadata.
+- M8: adds a fixture-backed standards conformance harness for SMART discovery, CRD primary hooks, DTR `Questionnaire/$questionnaire-package`, and PAS `Claim/$submit` shapes while keeping production conformance false.
 
 ## Important Boundaries
 
-This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
+This repository does not implement production SMART App Launch, production CDS Hooks CRD, production Da Vinci DTR, production Da Vinci PAS, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
 
 The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints.
 
-The M7 standards-shaped aliases return explicit non-conformance metadata. They exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
+The M8 standards-shaped fixture routes return explicit non-conformance metadata where possible. They exist to exercise replacement boundaries, not to claim SMART, CRD, DTR, or PAS production compatibility.
 
 All checked-in data is synthetic. Do not use real PHI, real payer credentials, production EHR URLs, or production payer endpoints in this repository.
 
@@ -64,7 +65,7 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - `apps/web/`: Next.js workbench UI for the synthetic end-to-end demo.
 - `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
 - `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, and questionnaire fixtures.
-- `docs/architecture/`: Milestone architecture notes from M1 through M6.
+- `docs/architecture/`: Milestone architecture notes from M1 through M8.
 - `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
 - `examples/automations/`: Docs-only automation recipes that call existing local APIs.
 - `infra/compose/`: Lightweight compose notes for local API/web services.
@@ -84,12 +85,19 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - `POST /pas/submit`
 - `GET /standards/boundaries`
 - `GET /.well-known/smart-configuration`
+- `GET /fhir/.well-known/smart-configuration`
 - `GET /smart/launch`
 - `POST /smart/token`
+- `GET /cds-services`
+- `POST /cds-services/open-prior-auth-appointment-book`
+- `POST /cds-services/open-prior-auth-order-dispatch`
+- `POST /cds-services/open-prior-auth-order-sign`
 - `POST /crd/evaluate`
 - `POST /dtr/questionnaire-package`
+- `POST /fhir/Questionnaire/$questionnaire-package`
 - `POST /dtr/evaluate-fixture-expression`
 - `POST /pas/build-submission`
+- `POST /fhir/Claim/$submit`
 - `POST /pas/submit-local`
 - `GET /work-items/:id/evidence`
 - `POST /work-items/:id/evidence/attach-fixture`
@@ -111,6 +119,7 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 - Fixture index: [data/README.md](data/README.md)
 - M6 architecture note: [docs/architecture/m6_durable_standards_boundary.md](docs/architecture/m6_durable_standards_boundary.md)
 - M7 architecture note: [docs/architecture/m7_evidence_and_dtr_boundary.md](docs/architecture/m7_evidence_and_dtr_boundary.md)
+- M8 architecture note: [docs/architecture/m8_standards_fixture_harness.md](docs/architecture/m8_standards_fixture_harness.md)
 - M5 architecture note: [docs/architecture/m5_oss_polish.md](docs/architecture/m5_oss_polish.md)
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security reporting: [SECURITY.md](SECURITY.md)
