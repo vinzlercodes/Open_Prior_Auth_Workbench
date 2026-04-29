@@ -22,6 +22,9 @@ test("local standards adapters preserve existing local behavior and name non-con
   assert.equal(adapters.crd.conformance, "local-crd-inspired-not-cds-hooks");
   assert.equal(adapters.dtr.conformance, "local-dtr-inspired-not-questionnaire-package");
   assert.equal(adapters.pas.conformance, "local-pas-style-mock-not-da-vinci-pas");
+  assert.equal(adapters.boundaries().productionConformance, false);
+  assert.ok(adapters.boundaries().boundaries.every((boundary) => boundary.productionConformance === false));
+  assert.ok(adapters.boundaries().boundaries.every((boundary) => boundary.contractVersion.startsWith("m8.")));
   assert.equal(adapted.evaluationId, direct.evaluationId);
   assert.deepEqual(adapters.launch.getPatientContext("patient-mri-001").patient.id, "patient-mri-001");
   assert.equal(store.getRequirementRun(adapted.evaluationId).result.evaluationStatus, "requirements_found");
