@@ -8,6 +8,7 @@ All data in this directory is synthetic and safe for local demos. Do not add rea
 - `seed/mri_lumbar_spine_golden/fhir-bundle.json`: Synthetic FHIR R4 bundle with enough evidence for deterministic requirement discovery and prefill.
 - `seed/mri_lumbar_spine_missing_evidence/fhir-bundle.json`: Synthetic FHIR R4 bundle used to prove missing baseline evidence behavior.
 - `evidence/mri-lumbar-spine.evidence-fixtures.json`: Synthetic M7 evidence fixtures for inline base64, local Binary-like, PDF-shaped, and Bundle-like smoke-test DocumentReference modes.
+- `standards/`: Synthetic M8 SMART discovery, CRD primary hook, DTR questionnaire package, and PAS Claim submit fixture payloads.
 - `payer-rules/mri-lumbar-spine.acme-health.v1.json`: Local payer rule pack for Acme Health MRI lumbar spine requirements.
 - `questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`: Local Questionnaire fixture used by the DTR-inspired form workspace.
 - `questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`: Local Library, ValueSet, and fixture-expression dependencies used by the M7 DTR boundary.
