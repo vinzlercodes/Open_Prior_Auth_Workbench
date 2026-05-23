@@ -1,5 +1,7 @@
 # M5 OSS Polish
 
+> Pre-agentic baseline note: this document describes the preserved M5 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundary
 
 M5 makes the M1-M4 synthetic prior authorization workbench easier for external builders to clone, understand, verify, and extend. It is a documentation, CI, fixture-indexing, and demo-artifact milestone.

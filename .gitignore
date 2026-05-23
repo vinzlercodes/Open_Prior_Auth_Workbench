@@ -14,5 +14,4 @@ coverage/
 .env.local
 *.tsbuildinfo
 open_prior_auth_workbench_strategy_report.pdf
-tasks/todo.md
 CONTEXT.md

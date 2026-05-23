@@ -1,5 +1,7 @@
 # M2 Form Workspace
 
+> Pre-agentic baseline note: this document describes the preserved M2 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundary
 
 M2 adds a local DTR-inspired form workspace on top of the M1 requirements sandbox. The implementation keeps the DTR vocabulary visible, but it does not claim conformance to the real FHIR `$questionnaire-package` operation.
