@@ -14,7 +14,12 @@ import type {
   WorkItem,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
-import { assertAllowedTransition, type PriorAuthStore, type RequirementRun, snapshot } from "./priorAuthStore.js";
+import {
+  assertAllowedTransition,
+  type PriorAuthStore,
+  type RequirementRun,
+  snapshot
+} from "@open-prior-auth/prior-auth-core";
 
 export class MemoryStore implements PriorAuthStore {
   private readonly requirementRuns = new Map<string, RequirementRun>();

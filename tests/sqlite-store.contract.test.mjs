@@ -4,12 +4,12 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { evaluateRequirement } from "../apps/api/dist/evaluation/evaluate.js";
+import { evaluateRequirement } from "../packages/prior-auth-core/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
-import { OperationsService } from "../apps/api/dist/operations/operationsService.js";
-import { QuestionnaireService } from "../apps/api/dist/questionnaires/questionnaireService.js";
+import { OperationsService } from "../packages/prior-auth-core/dist/index.js";
+import { QuestionnaireService } from "../packages/prior-auth-core/dist/index.js";
 import { SqliteStore } from "../apps/api/dist/storage/sqliteStore.js";
-import { SubmissionService } from "../apps/api/dist/submissions/submissionService.js";
+import { SubmissionService } from "../packages/prior-auth-core/dist/index.js";
 
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")

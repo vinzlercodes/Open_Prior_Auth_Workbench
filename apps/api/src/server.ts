@@ -12,13 +12,24 @@ import type {
   UploadEvidenceRequest,
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
+import {
+  buildSubmissionPacket,
+  evaluateRequirements,
+  EvidenceRepository,
+  getCaseAuditTrace,
+  getCaseStatusTimeline,
+  getPriorAuthorizationCase,
+  getQuestionnairePackage,
+  listEvidence,
+  listWorkItems,
+  OperationOutcomeError,
+  OperationsService,
+  saveQuestionnaireResponse,
+  submitMockPacket,
+  type PriorAuthStore
+} from "@open-prior-auth/prior-auth-core";
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
-import { EvidenceRepository } from "./evidence/evidenceRepository.js";
-import { OperationOutcomeError } from "./errors.js";
-import { evaluateRequirement } from "./evaluation/evaluate.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
-import { OperationsService } from "./operations/operationsService.js";
-import { type PriorAuthStore } from "./storage/priorAuthStore.js";
 import { SqliteStore } from "./storage/sqliteStore.js";
 
 export interface ApiDependencies {
@@ -102,7 +113,7 @@ async function routeRequest(
 
   if (request.method === "POST" && url.pathname === "/requirements/evaluate") {
     const body = await readJson<RequirementEvaluationRequest>(request);
-    sendJson(response, 200, adapters.crd.evaluate(body));
+    sendJson(response, 200, evaluateRequirements(body, repository, store));
     return;
   }
 
@@ -129,7 +140,7 @@ async function routeRequest(
       serviceLine: "mri_lumbar_spine",
       payerId: "acme-health"
     };
-    const baseResult = evaluateRequirement(baseRequest, repository);
+    const baseResult = evaluateRequirements(baseRequest, repository);
     const start = store.listWorkItems().length + 1;
     const created = Array.from({ length: count }, (_, index) => {
       const demoNumber = String(start + index).padStart(5, "0");
@@ -147,7 +158,7 @@ async function routeRequest(
   }
 
   if (request.method === "GET" && url.pathname === "/work-items") {
-    sendJson(response, 200, operationsService.listQueue({
+    sendJson(response, 200, listWorkItems(store, {
       status: url.searchParams.get("status") ?? undefined,
       owner: url.searchParams.get("owner") ?? undefined,
       sort: (url.searchParams.get("sort") as "age_desc" | "age_asc" | "updated_desc" | "updated_asc" | null) ?? undefined
@@ -162,7 +173,7 @@ async function routeRequest(
 
   if (request.method === "POST" && url.pathname === "/dtr/package") {
     const body = await readJson<QuestionnairePackageRequest>(request);
-    sendJson(response, 200, adapters.dtr.getPackage(body));
+    sendJson(response, 200, getQuestionnairePackage(body, repository, store));
     return;
   }
 
@@ -180,13 +191,13 @@ async function routeRequest(
 
   if (request.method === "POST" && url.pathname === "/dtr/save-response") {
     const body = await readJson<QuestionnaireResponseSaveRequest>(request);
-    sendJson(response, 200, adapters.dtr.saveResponse(body));
+    sendJson(response, 200, saveQuestionnaireResponse(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/build-packet") {
     const body = await readJson<PacketBuildRequest>(request);
-    sendJson(response, 200, adapters.pas.buildPacket(body));
+    sendJson(response, 200, buildSubmissionPacket(body, repository, store));
     return;
   }
 
@@ -198,7 +209,7 @@ async function routeRequest(
 
   if (request.method === "POST" && url.pathname === "/pas/submit") {
     const body = await readJson<PacketSubmitRequest>(request);
-    sendJson(response, 200, adapters.pas.submitPacket(body));
+    sendJson(response, 200, submitMockPacket(body, repository, store));
     return;
   }
 
@@ -210,7 +221,7 @@ async function routeRequest(
 
   const evidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence$/);
   if (request.method === "GET" && evidenceMatch) {
-    sendJson(response, 200, evidenceRepository.listEvidenceForWorkItem(decodeURIComponent(evidenceMatch[1])));
+    sendJson(response, 200, listEvidence(decodeURIComponent(evidenceMatch[1]), store));
     return;
   }
 
@@ -252,23 +263,13 @@ async function routeRequest(
 
   const workItemStatusMatch = url.pathname.match(/^\/work-items\/([^/]+)\/status$/);
   if (request.method === "GET" && workItemStatusMatch) {
-    const workItemId = decodeURIComponent(workItemStatusMatch[1]);
-    if (!store.getWorkItem(workItemId)) {
-      sendJson(response, 404, { error: "Work item not found" });
-      return;
-    }
-    sendJson(response, 200, store.getStatusEvents(workItemId));
+    sendJson(response, 200, getCaseStatusTimeline(decodeURIComponent(workItemStatusMatch[1]), store));
     return;
   }
 
   const workItemAuditMatch = url.pathname.match(/^\/work-items\/([^/]+)\/audit$/);
   if (request.method === "GET" && workItemAuditMatch) {
-    const workItemId = decodeURIComponent(workItemAuditMatch[1]);
-    if (!store.getWorkItem(workItemId)) {
-      sendJson(response, 404, { error: "Work item not found" });
-      return;
-    }
-    sendJson(response, 200, store.getAuditEventsForWorkItem(workItemId));
+    sendJson(response, 200, getCaseAuditTrace(decodeURIComponent(workItemAuditMatch[1]), store));
     return;
   }
 
@@ -294,12 +295,7 @@ async function routeRequest(
 
   const workItemMatch = url.pathname.match(/^\/work-items\/([^/]+)$/);
   if (request.method === "GET" && workItemMatch) {
-    const workItem = store.getWorkItem(decodeURIComponent(workItemMatch[1]));
-    if (!workItem) {
-      sendJson(response, 404, { error: "Work item not found" });
-      return;
-    }
-    sendJson(response, 200, workItem);
+    sendJson(response, 200, getPriorAuthorizationCase(decodeURIComponent(workItemMatch[1]), store).workItem);
     return;
   }
 

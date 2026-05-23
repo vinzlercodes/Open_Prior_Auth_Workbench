@@ -1,5 +1,5 @@
 import type { RequirementEvaluationRequest } from "@open-prior-auth/shared-types";
-import { evaluateRequirement } from "../evaluation/evaluate.js";
+import { evaluateRequirements } from "@open-prior-auth/prior-auth-core";
 import { FixtureFhirRepository } from "../fhir/fixtureRepository.js";
 import { SqliteStore } from "../storage/sqliteStore.js";
 
@@ -16,7 +16,7 @@ const baseRequest: RequirementEvaluationRequest = {
   serviceLine: "mri_lumbar_spine",
   payerId: "acme-health"
 };
-const baseResult = evaluateRequirement(baseRequest, repository);
+const baseResult = evaluateRequirements(baseRequest, repository);
 const start = store.listWorkItems().length + 1;
 const created = Array.from({ length: count }, (_, index) => {
   const demoNumber = String(start + index).padStart(5, "0");
