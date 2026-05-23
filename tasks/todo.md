@@ -124,45 +124,54 @@ Goal: create `packages/prior-auth-core` as the provider-side prior-auth Use Case
 
 Scope:
 
-- [ ] Create real package manifest/config for `packages/prior-auth-core`.
-- [ ] Introduce simple string ID aliases, not branded IDs:
-  - [ ] `PriorAuthorizationCaseId`
-  - [ ] `PriorAuthorizationRequestId`
-  - [ ] `SubmissionPacketId`
-  - [ ] `PayerUpdateId`
-  - [ ] `PayerDeterminationId`
-  - [ ] `WorkItemId`
-- [ ] Add ports:
-  - [ ] `PriorAuthStore`
-  - [ ] `ClinicalContextRepository`
-  - [ ] `Clock`
-  - [ ] `IdGenerator`
-- [ ] Extract/use core Use Cases:
-  - [ ] `getPriorAuthorizationCase`
-  - [ ] `listWorkItems`
-  - [ ] `evaluateRequirements`
-  - [ ] `getQuestionnairePackage`
-  - [ ] `saveQuestionnaireResponse`
-  - [ ] `listEvidence`
-  - [ ] `buildSubmissionPacket`
-  - [ ] `submitMockPacket`
-  - [ ] `getCaseStatusTimeline`
-  - [ ] `getCaseAuditTrace`
-- [ ] Keep current API routes and UI behavior working.
-- [ ] Do not expose agent-callable tools yet.
-- [ ] Do not rename DB tables.
-- [ ] Do not add UI changes.
+- [x] Create real package manifest/config for `packages/prior-auth-core`.
+- [x] Introduce simple string ID aliases, not branded IDs:
+  - [x] `PriorAuthorizationCaseId`
+  - [x] `PriorAuthorizationRequestId`
+  - [x] `SubmissionPacketId`
+  - [x] `PayerUpdateId`
+  - [x] `PayerDeterminationId`
+  - [x] `WorkItemId`
+- [x] Add ports:
+  - [x] `PriorAuthStore`
+  - [x] `ClinicalContextRepository`
+  - [x] `Clock`
+  - [x] `IdGenerator`
+- [x] Extract/use core Use Cases:
+  - [x] `getPriorAuthorizationCase`
+  - [x] `listWorkItems`
+  - [x] `evaluateRequirements`
+  - [x] `getQuestionnairePackage`
+  - [x] `saveQuestionnaireResponse`
+  - [x] `listEvidence`
+  - [x] `buildSubmissionPacket`
+  - [x] `submitMockPacket`
+  - [x] `getCaseStatusTimeline`
+  - [x] `getCaseAuditTrace`
+- [x] Keep current API routes and UI behavior working.
+- [x] Do not expose agent-callable tools yet.
+- [x] Do not rename DB tables.
+- [x] Do not add UI changes.
 
 Exit criteria:
 
-- [ ] `apps/api` imports `prior-auth-core` for listed Use Cases.
-- [ ] `prior-auth-core` does not import `apps/api`.
-- [ ] Existing API tests pass.
-- [ ] Existing UI/demo behavior remains unchanged.
-- [ ] `PriorAuthorizationCase` is the domain root.
-- [ ] `WorkItem` is queue projection.
-- [ ] `PriorAuthorizationRequest`, `SubmissionPacket`, `PayerUpdate`, and `PayerDetermination` types are defined or stubbed where needed.
-- [ ] No ToolNet handlers exist yet.
+- [x] `apps/api` imports `prior-auth-core` for listed Use Cases.
+- [x] `prior-auth-core` does not import `apps/api`.
+- [x] Existing API tests pass.
+- [x] Existing UI/demo behavior remains unchanged.
+- [x] `PriorAuthorizationCase` is the domain root.
+- [x] `WorkItem` is queue projection.
+- [x] `PriorAuthorizationRequest`, `SubmissionPacket`, `PayerUpdate`, and `PayerDetermination` types are defined or stubbed where needed.
+- [x] No ToolNet handlers exist yet.
+
+### M1a Review
+
+- Implemented `@open-prior-auth/prior-auth-core` as a real package with Use Cases, ports, string ID aliases, domain root types, and extracted services.
+- Rewired `apps/api` HTTP routes, standards adapters, store implementations, and demo seed code to consume core exports while preserving current route response shapes.
+- Kept concrete adapters in `apps/api`: fixture FHIR repository, memory store, SQLite store, and HTTP server.
+- Added core contract and boundary coverage proving the package exposes M1a Use Cases and imports no `apps/api`, `../apps`, or `doctor-toolnet`.
+- Added `demo/m1a-prior-auth-core.md` with verification commands and expected results.
+- Verification: `npm test` passed 53/53 with localhost permission.
 
 ### M1b: Doctor ToolNet Foundation
 

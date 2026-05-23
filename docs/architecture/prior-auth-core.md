@@ -1,6 +1,6 @@
 # Prior Auth Core
 
-Prior Auth Core is the planned package boundary for provider-side prior authorization Use Cases and ports. It becomes real in M1a; M0 only creates a README placeholder.
+Prior Auth Core is the package boundary for provider-side prior authorization Use Cases and ports. M1a implements it as `@open-prior-auth/prior-auth-core`.
 
 ## Ownership
 
@@ -34,3 +34,12 @@ Use Cases are the source of truth. HTTP routes and ToolNet tools are sibling ada
 ## M1a Boundary
 
 M1a creates the real package manifest/config, adds simple string ID aliases, adds ports, extracts current Use Cases, and keeps current API/UI behavior unchanged.
+
+Implemented package exports:
+
+- simple string ID aliases for case, request, packet, payer update, payer determination, and work item IDs
+- `PriorAuthStore`, `ClinicalContextRepository`, `Clock`, and `IdGenerator` ports
+- `PriorAuthorizationCase`, `PriorAuthorizationRequest`, and `PayerDetermination`
+- Use Cases for case read, work item list, requirement evaluation, questionnaire package retrieval, questionnaire response save, evidence list, packet build, mock submit, status timeline, and audit trace
+
+`apps/api` still owns concrete HTTP routes, SQLite/memory stores, and fixture FHIR repository adapters. The package does not import `apps/*`, does not rename DB tables, and does not add ToolNet handlers.
