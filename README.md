@@ -1,8 +1,8 @@
-# Open Prior Auth Workbench
+# Open Prior Auth Agent Workbench
 
-Open Prior Auth Workbench is a synthetic-data-only, provider-side prior authorization workbench. It demonstrates a local MRI lumbar spine prior authorization flow across requirement discovery, documentation capture, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
+Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the planned Doctor Agent OS substrate. The current runnable baseline remains the M1-M7 Open Prior Auth Workbench: a local MRI lumbar spine flow for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
 
-The project is designed as an open-source reference implementation and developer sandbox. It is useful for learning the product shape and extending local fixtures, but it is not production healthcare infrastructure.
+Doctor Agent OS is the implementation platform direction for reusable agent runtime, ToolNet tools, MCP exposure, approvals, traces, and evaluations. It is not a broader committed business domain. The first and only committed app/domain is provider-side prior authorization.
 
 ## Quickstart
 
@@ -38,37 +38,38 @@ npm run db:reset
 npm run demo:seed
 ```
 
-## What The Milestones Do
+## Current Baseline
 
-- M1: loads a synthetic patient and order context, evaluates local payer requirements, and creates a work item from a deterministic requirement result.
-- M2: opens a local DTR-inspired questionnaire workspace, prefills known fields from fixture FHIR data, validates required answers, and saves a review-ready QuestionnaireResponse.
-- M3: builds a deterministic PAS-style local packet, submits it to a mock PAS transport, and records status and audit history.
-- M4: adds an operations queue, aging and metrics, payer-pended status, more-info requests, structured denial reasons, and terminal outcomes.
-- M5: adds OSS polish for external builders: contributor docs, humble security reporting guidance, CI, fixture indexes, deterministic screenshots, and docs-only automation recipes.
-- M6: replaces the runtime in-memory store with a constrained SQLite repository, adds explicit transaction boundaries for case lifecycle writes, keeps `MemoryStore` for tests only, and introduces local standards-shaped launch/CRD/DTR/PAS adapter boundaries.
-- M7: adds local synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet DTR dependencies, standards-shaped non-conformant aliases, and SQLite schema v2 evidence metadata.
+- M1: synthetic launch/context, local requirement evaluation, and work item creation.
+- M2: local DTR-inspired questionnaire workspace with deterministic prefill and validation.
+- M3: deterministic PAS-style local packet build, mock submission, status timeline, and audit trail.
+- M4: operations queue, aging metrics, payer pended status, more-info requests, denial reasons, and terminal outcomes.
+- M5: OSS polish with contributor docs, CI, fixture index, screenshots, and docs-only automation recipes.
+- M6: SQLite-backed local persistence, transaction boundaries, DB scripts, and local standards-shaped adapter boundaries.
+- M7: synthetic supporting information, DocumentReference/Binary-like packet entries, fixture DTR dependencies, standards-shaped non-conformant aliases, and SQLite evidence metadata.
 
-## Important Boundaries
+## Safety And Conformance Boundaries
 
-This repository does not implement production SMART App Launch, CDS Hooks CRD, the FHIR `$questionnaire-package` operation, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
+This repository is synthetic-only, standards-shaped, non-certified, not PHI-ready, and not connected to live EHRs or payers. Do not use real PHI, payer credentials, production EHR URLs, or production payer endpoints.
 
-The `/dtr/*` endpoints are intentionally local DTR-like product endpoints. The `/pas/*` endpoints are intentionally PAS-style local product endpoints.
+It does not implement production SMART App Launch, CDS Hooks CRD, FHIR `$questionnaire-package`, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
 
-The M7 standards-shaped aliases return explicit non-conformance metadata. They exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
-
-All checked-in data is synthetic. Do not use real PHI, real payer credentials, production EHR URLs, or production payer endpoints in this repository.
+The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoints are PAS-style local product endpoints. The M7 standards-shaped aliases return explicit non-conformance metadata and exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
 
 ## Repository Map
 
-- `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, SQLite-backed local persistence, and operations APIs.
+- `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, SQLite-backed local persistence, evidence, and operations APIs.
 - `apps/web/`: Next.js workbench UI for the synthetic end-to-end demo.
 - `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
-- `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, and questionnaire fixtures.
-- `docs/architecture/`: Milestone architecture notes from M1 through M6.
+- `packages/prior-auth-core/`, `packages/doctor-toolnet/`, `packages/doctor-runtime/`, `packages/doctor-mcp/`, `packages/doctor-evals/`: README-only M0 placeholders for planned Doctor Agent OS package boundaries.
+- `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, questionnaires, evidence fixtures, and standards-shaped payload fixtures.
+- `docs/`: Roadmap, glossary, architecture notes, conformance matrix, and demo story docs.
 - `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
 - `examples/automations/`: Docs-only automation recipes that call existing local APIs.
 - `infra/compose/`: Lightweight compose notes for local API/web services.
-- `tests/`: Contract tests for M1-M6 behavior.
+- `tests/`: Contract tests for current M1-M7 behavior.
+
+Package direction is intentional: `apps/*` may import `packages/*`; `packages/*` must not import `apps/*`.
 
 ## API Surface
 
@@ -106,12 +107,19 @@ All checked-in data is synthetic. Do not use real PHI, real payer credentials, p
 
 ## Builder Docs
 
+- Roadmap: [docs/roadmap.md](docs/roadmap.md)
+- Glossary: [docs/glossary.md](docs/glossary.md)
+- Doctor Agent OS architecture: [docs/architecture/doctor-agent-os.md](docs/architecture/doctor-agent-os.md)
+- Prior Auth Core architecture: [docs/architecture/prior-auth-core.md](docs/architecture/prior-auth-core.md)
+- ToolNet architecture: [docs/architecture/toolnet.md](docs/architecture/toolnet.md)
+- Runtime architecture: [docs/architecture/runtime.md](docs/architecture/runtime.md)
+- MCP architecture: [docs/architecture/mcp.md](docs/architecture/mcp.md)
+- Strategy audit: [docs/architecture/strategy_report_implementation_audit.md](docs/architecture/strategy_report_implementation_audit.md)
+- Conformance matrix: [docs/standards/conformance-matrix.md](docs/standards/conformance-matrix.md)
+- Agentic story flow: [docs/demo/agentic-story-flow.md](docs/demo/agentic-story-flow.md)
 - Demo walkthrough: [demo/README.md](demo/README.md)
 - Screenshot guide: [demo/screenshots/README.md](demo/screenshots/README.md)
 - Fixture index: [data/README.md](data/README.md)
-- M6 architecture note: [docs/architecture/m6_durable_standards_boundary.md](docs/architecture/m6_durable_standards_boundary.md)
-- M7 architecture note: [docs/architecture/m7_evidence_and_dtr_boundary.md](docs/architecture/m7_evidence_and_dtr_boundary.md)
-- M5 architecture note: [docs/architecture/m5_oss_polish.md](docs/architecture/m5_oss_polish.md)
 - Contributor guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - Security reporting: [SECURITY.md](SECURITY.md)
 - Automation recipes: [examples/automations/README.md](examples/automations/README.md)
