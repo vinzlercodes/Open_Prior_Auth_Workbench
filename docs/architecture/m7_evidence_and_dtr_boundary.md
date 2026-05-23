@@ -1,5 +1,7 @@
 # M7 Evidence Attachments And DTR Boundary
 
+> Pre-agentic baseline note: this document describes the preserved M7 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundary
 
 M7 adds local synthetic evidence attachments, FHIR-shaped DocumentReference/Binary packet entries, fixture-based DTR dependencies, and standards-shaped route aliases. It remains a local developer sandbox. It does not implement real FHIR persistence, Da Vinci conformance, production SMART App Launch, production PAS, X12 278, payer endpoint discovery, or real payer transport.
