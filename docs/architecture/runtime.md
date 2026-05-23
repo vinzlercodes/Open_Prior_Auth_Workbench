@@ -1,6 +1,6 @@
 # Doctor Runtime
 
-Doctor Runtime is the planned workflow-agnostic runtime package for agent runs, tasks, approvals, tool call records, and trace events. It becomes real in M2; M0 only documents the boundary and creates a README placeholder.
+Doctor Runtime is the workflow-agnostic runtime package for agent runs, tasks, approvals, tool call records, and trace events.
 
 ## Target Primitives
 
@@ -12,7 +12,7 @@ Doctor Runtime is the planned workflow-agnostic runtime package for agent runs, 
 - `ApprovalDecision`
 - `TraceEvent`
 
-## Persistence Direction
+## Persistence
 
 M2 adds SQLite runtime tables:
 
@@ -22,11 +22,11 @@ M2 adds SQLite runtime tables:
 - `approval_requests`
 - `agent_trace_events`
 
-`agent_trace_events` is the canonical ordered runtime trace stream. Task, tool, and approval tables are structured state/index tables.
+`agent_trace_events` is the canonical ordered runtime trace stream. Task, tool, and approval tables are structured state/index tables. Runtime migrations use `doctor_runtime_schema_migrations`, separate from prior-auth schema migrations.
 
 ## ApprovalGate
 
-Guarded write/submit tools pause the run and create approval requests. Approval or rejection records trace events and resumes or rejects the run. This keeps agent action visible and human-controlled.
+Guarded ToolNet write/submit tools pause the run and create approval requests. Approval records trace events, executes the guarded Prior Auth Core Use Case, and resumes the run. Rejection records trace events, rejects the run, and leaves prior-auth case state unchanged.
 
 ## Non-Goals
 
