@@ -1,5 +1,7 @@
 # M1 Standards Sandbox
 
+> Pre-agentic baseline note: this document describes the preserved M1 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundaries
 
 M1 keeps the product boundary small:

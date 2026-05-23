@@ -1,5 +1,7 @@
 # M4 Operations Layer
 
+> Pre-agentic baseline note: this document describes the preserved M4 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundary
 
 M4 adds a local operations layer on top of the M1-M3 CRD-inspired, DTR-inspired, and PAS-style demo flow. It is still synthetic-only and in-memory. It does not add Temporal, durable persistence, PAS inquiry, real payer endpoints, or production adjudication.
