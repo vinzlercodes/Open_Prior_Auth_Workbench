@@ -1,12 +1,28 @@
 # Prior Auth Core
 
-README-only M0 placeholder.
+Provider-side prior authorization Use Case and ports package for Doctor Agent OS.
 
-This planned package will own provider-side prior authorization Use Cases and ports. It becomes a real package in M1a. Do not add `package.json`, `tsconfig.json`, source files, or build config in M0.
+M1a makes this a real workspace package. HTTP routes in `apps/api` and future ToolNet tools are sibling adapters over these Use Cases.
 
-Boundary rules:
+## Boundary
 
-- owns Prior Authorization Case Use Cases
-- does not import `apps/*`
-- exposes Use Cases for HTTP routes and ToolNet tools as sibling adapters
-- keeps `PriorAuthorizationCase` as domain root and `WorkItem` as queue projection
+- Owns Prior Authorization Case Use Cases.
+- Does not import `apps/*`.
+- Exposes ports for clinical context, store, clock, and ID generation.
+- Keeps `PriorAuthorizationCase` as domain root.
+- Keeps `WorkItem` as queue projection.
+- Does not expose agent-callable tools.
+
+## Exports
+
+- ID aliases: `PriorAuthorizationCaseId`, `PriorAuthorizationRequestId`, `SubmissionPacketId`, `PayerUpdateId`, `PayerDeterminationId`, `WorkItemId`.
+- Ports: `PriorAuthStore`, `ClinicalContextRepository`, `Clock`, `IdGenerator`.
+- Domain root: `PriorAuthorizationCase`.
+- Use Cases: `getPriorAuthorizationCase`, `listWorkItems`, `evaluateRequirements`, `getQuestionnairePackage`, `saveQuestionnaireResponse`, `listEvidence`, `buildSubmissionPacket`, `submitMockPacket`, `getCaseStatusTimeline`, `getCaseAuditTrace`.
+
+## Verification
+
+```bash
+npm run build -w @open-prior-auth/prior-auth-core
+npm test
+```

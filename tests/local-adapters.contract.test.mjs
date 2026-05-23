@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 import { createLocalStandardsAdapters } from "../apps/api/dist/adapters/localStandardsAdapters.js";
-import { evaluateRequirement } from "../apps/api/dist/evaluation/evaluate.js";
+import { evaluateRequirement } from "../packages/prior-auth-core/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
 import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 

@@ -18,7 +18,12 @@ import type {
   WorkItemCreateRequest
 } from "@open-prior-auth/shared-types";
 import { resolveFromRepoRoot } from "../config/paths.js";
-import { assertAllowedTransition, type PriorAuthStore, type RequirementRun, snapshot } from "./priorAuthStore.js";
+import {
+  assertAllowedTransition,
+  type PriorAuthStore,
+  type RequirementRun,
+  snapshot
+} from "@open-prior-auth/prior-auth-core";
 
 type Row = Record<string, unknown>;
 

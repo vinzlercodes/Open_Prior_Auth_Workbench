@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import test from "node:test";
 import { createServer } from "../apps/api/dist/server.js";
-import { EvidenceRepository } from "../apps/api/dist/evidence/evidenceRepository.js";
-import { evaluateRequirement } from "../apps/api/dist/evaluation/evaluate.js";
-import { OperationOutcomeError } from "../apps/api/dist/errors.js";
+import { EvidenceRepository } from "../packages/prior-auth-core/dist/index.js";
+import { evaluateRequirement } from "../packages/prior-auth-core/dist/index.js";
+import { OperationOutcomeError } from "../packages/prior-auth-core/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
-import { QuestionnaireService } from "../apps/api/dist/questionnaires/questionnaireService.js";
+import { QuestionnaireService } from "../packages/prior-auth-core/dist/index.js";
 import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
-import { SubmissionService } from "../apps/api/dist/submissions/submissionService.js";
+import { SubmissionService } from "../packages/prior-auth-core/dist/index.js";
 
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")

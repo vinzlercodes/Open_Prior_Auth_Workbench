@@ -6,11 +6,17 @@ import type {
   QuestionnaireResponseSaveRequest,
   RequirementEvaluationRequest
 } from "@open-prior-auth/shared-types";
-import { evaluateRequirement } from "../evaluation/evaluate.js";
+import {
+  buildSubmissionPacket,
+  evaluateRequirements,
+  getQuestionnairePackage,
+  QuestionnaireService,
+  saveQuestionnaireResponse,
+  submitMockPacket,
+  SubmissionService,
+  type PriorAuthStore
+} from "@open-prior-auth/prior-auth-core";
 import { FixtureFhirRepository } from "../fhir/fixtureRepository.js";
-import { QuestionnaireService } from "../questionnaires/questionnaireService.js";
-import { type PriorAuthStore } from "../storage/priorAuthStore.js";
-import { SubmissionService } from "../submissions/submissionService.js";
 
 export class LocalLaunchAdapter {
   readonly conformance = "local-launch-shim-not-smart" as const;
@@ -68,8 +74,7 @@ export class LocalCrdAdapter {
   ) {}
 
   evaluate(input: RequirementEvaluationRequest) {
-    const result = evaluateRequirement(input, this.repository);
-    return this.store.saveEvaluation(input, result);
+    return evaluateRequirements(input, this.repository, this.store);
   }
 
   evaluateCoverageRequirements(input: RequirementEvaluationRequest) {
@@ -93,16 +98,19 @@ export class LocalDtrAdapter {
   };
   private readonly service: QuestionnaireService;
 
-  constructor(repository: FixtureFhirRepository, store: PriorAuthStore) {
+  constructor(
+    private readonly repository: FixtureFhirRepository,
+    private readonly store: PriorAuthStore
+  ) {
     this.service = new QuestionnaireService(repository, store);
   }
 
   getPackage(input: QuestionnairePackageRequest) {
-    return this.service.getPackage(input.workItemId);
+    return getQuestionnairePackage(input, this.repository, this.store);
   }
 
   saveResponse(input: QuestionnaireResponseSaveRequest) {
-    return this.service.saveResponse(input);
+    return saveQuestionnaireResponse(input, this.repository, this.store);
   }
 
   getStandardsPackage(input: QuestionnairePackageRequest) {
@@ -130,16 +138,19 @@ export class LocalPasAdapter {
   };
   private readonly service: SubmissionService;
 
-  constructor(repository: FixtureFhirRepository, store: PriorAuthStore) {
+  constructor(
+    private readonly repository: FixtureFhirRepository,
+    private readonly store: PriorAuthStore
+  ) {
     this.service = new SubmissionService(repository, store);
   }
 
   buildPacket(input: PacketBuildRequest) {
-    return this.service.buildPacket(input);
+    return buildSubmissionPacket(input, this.repository, this.store);
   }
 
   submitPacket(input: PacketSubmitRequest) {
-    return this.service.submitPacket(input);
+    return submitMockPacket(input, this.repository, this.store);
   }
 
   buildSubmission(input: PacketBuildRequest) {
