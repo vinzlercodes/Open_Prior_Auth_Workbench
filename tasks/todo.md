@@ -230,26 +230,26 @@ Goal: add minimal runtime lifecycle, approval pause/resume, and durable trace st
 
 Scope:
 
-- [ ] Create real package manifest/config for `packages/doctor-runtime`.
-- [ ] Runtime primitives are workflow-agnostic:
-  - [ ] `AgentRun`
-  - [ ] `AgentTask`
-  - [ ] `TaskPlan`
-  - [ ] `ToolCallRecord`
-  - [ ] `ApprovalRequest`
-  - [ ] `ApprovalDecision`
-  - [ ] `TraceEvent`
-- [ ] Use prior-auth-only validation through MRI/DME scenarios.
-- [ ] Add SQLite runtime tables:
-  - [ ] `agent_runs`
-  - [ ] `agent_tasks`
-  - [ ] `tool_call_records`
-  - [ ] `approval_requests`
-  - [ ] `agent_trace_events`
-- [ ] `agent_trace_events` is canonical ordered trace stream.
-- [ ] task/tool/approval tables are structured state/index tables.
-- [ ] Guarded write/submit tools can pause and create approval requests.
-- [ ] Approve/reject records trace events and resumes or rejects run.
+- [x] Create real package manifest/config for `packages/doctor-runtime`.
+- [x] Runtime primitives are workflow-agnostic:
+  - [x] `AgentRun`
+  - [x] `AgentTask`
+  - [x] `TaskPlan`
+  - [x] `ToolCallRecord`
+  - [x] `ApprovalRequest`
+  - [x] `ApprovalDecision`
+  - [x] `TraceEvent`
+- [x] Use prior-auth-only validation through MRI scenario; DME remains future M4.
+- [x] Add SQLite runtime tables:
+  - [x] `agent_runs`
+  - [x] `agent_tasks`
+  - [x] `tool_call_records`
+  - [x] `approval_requests`
+  - [x] `agent_trace_events`
+- [x] `agent_trace_events` is canonical ordered trace stream.
+- [x] task/tool/approval tables are structured state/index tables.
+- [x] Guarded write/submit tools can pause and create approval requests.
+- [x] Approve/reject records trace events and resumes or rejects run.
 
 Out of scope:
 
@@ -259,6 +259,14 @@ Out of scope:
 - prior-auth schema rename.
 - broad multi-agent team.
 - generic healthcare workflow API.
+
+### M2 Review
+
+- Implemented `@open-prior-auth/doctor-runtime` as a real workspace package with workflow-agnostic run, task, plan, tool call, approval, decision, and trace primitives.
+- Added `SqliteRuntimeStore` with `agent_runs`, `agent_tasks`, `tool_call_records`, `approval_requests`, and canonical ordered `agent_trace_events` tables, using separate `doctor_runtime_schema_migrations`.
+- Added ApprovalGate runtime behavior over ToolNet and Prior Auth Core: unguarded tools execute through ToolNet; guarded questionnaire save and mock submit pause without mutation, then approve/reject paths record trace state and execute or reject.
+- Added `tests/doctor-runtime.contract.test.mjs` covering package exports, source boundaries, SQLite tables and trace persistence, unguarded execution, guarded pause, approval, and rejection.
+- Added `demo/m2-doctor-runtime-approval-gate.md` with verification commands and expected behavior.
 
 ### M3: Deterministic Prior-Auth Agent Team
 

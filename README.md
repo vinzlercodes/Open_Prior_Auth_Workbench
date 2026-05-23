@@ -61,7 +61,10 @@ The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoi
 - `apps/api/`: TypeScript API for fixture-backed context lookup, requirement evaluation, questionnaire packages, packet building, mock submission, SQLite-backed local persistence, evidence, and operations APIs.
 - `apps/web/`: Next.js workbench UI for the synthetic end-to-end demo.
 - `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
-- `packages/prior-auth-core/`, `packages/doctor-toolnet/`, `packages/doctor-runtime/`, `packages/doctor-mcp/`, `packages/doctor-evals/`: README-only M0 placeholders for planned Doctor Agent OS package boundaries.
+- `packages/prior-auth-core/`: provider-side prior-auth Use Cases and ports.
+- `packages/doctor-toolnet/`: agent/tool adapter over Prior Auth Core.
+- `packages/doctor-runtime/`: workflow-agnostic run/task/tool/approval/trace runtime with SQLite persistence.
+- `packages/doctor-mcp/`, `packages/doctor-evals/`: README-only placeholders for planned MCP and eval package boundaries.
 - `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, questionnaires, evidence fixtures, and standards-shaped payload fixtures.
 - `docs/`: Roadmap, glossary, architecture notes, conformance matrix, and demo story docs.
 - `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
