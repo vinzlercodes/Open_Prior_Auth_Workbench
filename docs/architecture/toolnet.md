@@ -1,10 +1,10 @@
 # Doctor ToolNet
 
-Doctor ToolNet is the planned agent-facing tool adapter over Use Cases. It becomes real in M1b; M0 only documents the boundary and creates a README placeholder.
+Doctor ToolNet is the agent-facing tool adapter over Use Cases. M1b makes `packages/doctor-toolnet` a real workspace package over `prior-auth-core`.
 
 ## Purpose
 
-ToolNet tools expose prior-auth and platform Use Cases with:
+ToolNet tools expose prior-auth Use Cases with:
 
 - stable tool names
 - input/output schemas
@@ -17,9 +17,11 @@ ToolNet tools expose prior-auth and platform Use Cases with:
 
 ToolNet tools call Use Cases directly. They do not fetch `localhost`, call internal API routes, or bypass Prior Auth Core.
 
-## M1b Tool Shape
+## M1b Implementation
 
-Executable read/draft tools:
+The package exports `listDoctorTools`, `getDoctorToolDefinition`, `createDoctorToolRegistry`, and `executeDoctorTool`. Tool dependencies are Prior Auth Core ports: `PriorAuthStore` and `ClinicalContextRepository`, plus optional clock, id generator, and evidence upload directory.
+
+Executable read/draft tools call Prior Auth Core directly:
 
 - `doctor.case.get`
 - `doctor.queue.list_work_items`
@@ -35,7 +37,9 @@ Declared but non-executable guarded tools:
 - `doctor.dtr.save_response`
 - `doctor.pas.submit_mock`
 
-Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED` until Doctor Runtime adds ApprovalGate.
+Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED` until Doctor Runtime adds ApprovalGate in M2. They are visible contracts, not executable case-changing actions.
+
+Each call returns a traceable call record with call id, tool name, category, risk level, approval flag, status, timestamps, input, and output or error.
 
 ## Non-Goals
 

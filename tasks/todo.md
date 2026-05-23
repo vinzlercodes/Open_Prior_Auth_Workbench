@@ -179,22 +179,22 @@ Goal: add ToolNet as the agent/tool adapter over `prior-auth-core`, with executa
 
 Scope:
 
-- [ ] Create real package manifest/config for `packages/doctor-toolnet`.
-- [ ] Add ToolNet registry, tool metadata, schemas, categories, risk levels, approval metadata, and call record shape.
-- [ ] Executable read/draft tools:
-  - [ ] `doctor.case.get`
-  - [ ] `doctor.queue.list_work_items`
-  - [ ] `doctor.case.get_status_timeline`
-  - [ ] `doctor.case.get_audit_trace`
-  - [ ] `doctor.evidence.list`
-  - [ ] `doctor.requirements.evaluate`
-  - [ ] `doctor.dtr.get_questionnaire_package`
-  - [ ] `doctor.pas.build_packet`
-- [ ] Declared but non-executable guarded tools:
-  - [ ] `doctor.dtr.save_response`
-  - [ ] `doctor.pas.submit_mock`
-- [ ] Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED`.
-- [ ] Tests prove ToolNet does not fetch localhost or import `apps/api`.
+- [x] Create real package manifest/config for `packages/doctor-toolnet`.
+- [x] Add ToolNet registry, tool metadata, schemas, categories, risk levels, approval metadata, and call record shape.
+- [x] Executable read/draft tools:
+  - [x] `doctor.case.get`
+  - [x] `doctor.queue.list_work_items`
+  - [x] `doctor.case.get_status_timeline`
+  - [x] `doctor.case.get_audit_trace`
+  - [x] `doctor.evidence.list`
+  - [x] `doctor.requirements.evaluate`
+  - [x] `doctor.dtr.get_questionnaire_package`
+  - [x] `doctor.pas.build_packet`
+- [x] Declared but non-executable guarded tools:
+  - [x] `doctor.dtr.save_response`
+  - [x] `doctor.pas.submit_mock`
+- [x] Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED`.
+- [x] Tests prove ToolNet does not fetch localhost or import `apps/api`.
 
 Out of scope:
 
@@ -208,9 +208,21 @@ Out of scope:
 
 Exit criteria:
 
-- [ ] Agents/tools can safely inspect, reason, draft, and preview prior-auth work.
-- [ ] Write/submit capabilities are visible as planned/guarded contracts but not callable.
-- [ ] Existing API/UI behavior still works.
+- [x] Agents/tools can safely inspect, reason, draft, and preview prior-auth work.
+- [x] Write/submit capabilities are visible as planned/guarded contracts but not callable.
+- [x] Existing API/UI behavior still works.
+
+### M1b Review
+
+- Implemented `@open-prior-auth/doctor-toolnet` as a real workspace package over Prior Auth Core ports.
+- Added stable registry metadata, JSON-schema-like tool contracts, risk levels, approval metadata, and traceable call records.
+- Implemented eight executable read/draft tools that call core Use Cases directly.
+- Added guarded contracts for `doctor.dtr.save_response` and `doctor.pas.submit_mock`; both return deterministic `APPROVAL_EXECUTOR_REQUIRED`.
+- Added source-boundary tests proving ToolNet source does not import `apps/api`, use app-relative imports, fetch local servers, or call internal HTTP helpers.
+- Added `demo/m1b-doctor-toolnet.md` and updated ToolNet architecture/package docs.
+- Verification: first sandboxed `npm test` failed only on expected `listen EPERM: operation not permitted 127.0.0.1`; rerun with localhost permission passed 57/57.
+- Verification: `npm run typecheck` passed.
+- Verification: `npm run build` passed.
 
 ### M2: Doctor Runtime + ApprovalGate
 
