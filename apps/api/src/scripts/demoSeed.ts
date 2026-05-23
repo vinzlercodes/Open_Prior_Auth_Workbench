@@ -31,4 +31,9 @@ const created = Array.from({ length: count }, (_, index) => {
 });
 
 store.close();
-console.log(JSON.stringify(created, null, 2));
+const createdSummary = created.map((item) => ({
+  id: item.id,
+  evaluationId: item.evaluationId,
+  status: item.status
+}));
+console.log(JSON.stringify({ createdCount: created.length, items: createdSummary }, null, 2));
