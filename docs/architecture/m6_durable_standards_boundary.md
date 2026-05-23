@@ -1,5 +1,7 @@
 # M6 Durable Standards Boundary
 
+> Pre-agentic baseline note: this document describes the preserved M6 local prior-auth workbench baseline before the Doctor Agent OS roadmap reset. See [../roadmap.md](../roadmap.md) for current M0-M9 direction.
+
 ## Boundary
 
 M6 turns the local synthetic workbench from process-memory state into a SQLite-backed durable sandbox while preserving the existing M1-M5 API and web behavior. SQLite is the runtime source of truth for local case state. JSON remains the format for checked-in fixtures, golden snapshots, imports, exports, and demos.
