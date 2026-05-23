@@ -18,7 +18,7 @@
     "demo:seed": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/demoSeed.js",
     "dev:api": "npm run dev -w @open-prior-auth/api",
     "dev:web": "npm run dev -w @open-prior-auth/web",
-    "test": "npm run build -w @open-prior-auth/shared-types && npm run build -w @open-prior-auth/prior-auth-core && npm run build -w @open-prior-auth/doctor-toolnet && npm run build -w @open-prior-auth/api && node --test tests/*.test.mjs",
+    "test": "npm run build -w @open-prior-auth/shared-types && npm run build -w @open-prior-auth/prior-auth-core && npm run build -w @open-prior-auth/doctor-toolnet && npm run build -w @open-prior-auth/doctor-runtime && npm run build -w @open-prior-auth/api && node --test tests/*.test.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {
