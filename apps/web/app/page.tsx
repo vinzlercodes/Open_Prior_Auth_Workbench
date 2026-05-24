@@ -3,25 +3,66 @@
 import { useMemo, useState } from "react";
 import type {
   AuditEvent,
-  EvidenceAttachment,
   EvidenceListResponse,
-  FhirQuestionnaireItem,
-  FhirQuestionnaireResponse,
-  FhirQuestionnaireResponseAnswer,
-  FhirQuestionnaireResponseItem,
-  OperationsMetrics,
+  MoreInfoRequest,
   PayerUpdateStatus,
-  SubmissionPacket,
-  SubmissionReceipt,
-  PrefillSummary,
   QuestionnairePackage,
-  RequirementEvaluationResult,
   StatusEvent,
-  ValidationIssue,
+  SubmissionPacket,
   WorkItem,
   WorkItemOperationsHistory,
   WorkItemQueueRow
 } from "@open-prior-auth/shared-types";
+
+type AgentRunStatus = "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
+type AgentStepStatus = "pending" | "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
+type ApprovalStatus = "pending" | "approved" | "rejected";
+
+interface AgentCockpitTraceEvent {
+  sequence: number;
+  eventId: string;
+  type: string;
+  actor: string;
+  at: string;
+  message: string;
+}
+
+interface AgentCockpitRunResponse {
+  workItem: WorkItem;
+  run: {
+    id: string;
+    status: AgentRunStatus;
+  };
+  steps: Array<{
+    agent: string;
+    status: AgentStepStatus;
+    summary: string;
+    toolName?: string;
+  }>;
+  trace: AgentCockpitTraceEvent[];
+  questionnaireApproval: {
+    status: ApprovalStatus;
+    toolName: string;
+  };
+  submitApproval: {
+    status: ApprovalStatus;
+    toolName: string;
+  };
+  questionnairePackage: QuestionnairePackage;
+  evidence: EvidenceListResponse;
+  evidenceBoard: Array<{
+    requirementCode: string;
+    requirementLabel: string;
+    requirementDetail: string;
+    sourceLabel: string;
+    status: string;
+    fixtureIds: string[];
+    evidenceAttachmentIds: string[];
+  }>;
+  packet: SubmissionPacket;
+  statusTimeline: StatusEvent[];
+  auditTrace: AuditEvent[];
+}
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
 
@@ -52,8 +93,6 @@ const scenarioOptions = [
   }
 ] as const;
 
-const goldenRequest = scenarioOptions[0].request;
-
 const moreInfoByServiceLine: Record<string, { message: string; code: string; label: string }> = {
   mri_lumbar_spine: {
     message: "Please provide conservative therapy details.",
@@ -67,388 +106,50 @@ const moreInfoByServiceLine: Record<string, { message: string; code: string; lab
   }
 };
 
-type ScenarioRequest = typeof goldenRequest;
-
-const fallbackRequest: ScenarioRequest = {
-  patientId: "patient-mri-001",
-  coverageId: "coverage-acme-001",
-  requestResourceType: "ServiceRequest",
-  requestResourceId: "servicerequest-mri-lumbar-001",
-  serviceLine: "mri_lumbar_spine",
-  payerId: "acme-health"
-};
-
-type PatientContext = {
-  patient: { id?: string; name?: Array<{ given?: string[]; family?: string }> } | null;
-  coverage: { id?: string; class?: Array<{ name?: string }> } | null;
-  request: { id?: string; code?: { text?: string }; codeCodeableConcept?: { text?: string } } | null;
-  conditions: Array<{ id?: string; code?: { text?: string } }>;
-  observations: Array<{ id?: string; code?: { text?: string }; valueString?: string }>;
-};
-
 export default function Home() {
   const [scenarioId, setScenarioId] = useState(scenarioOptions[0].scenarioId);
-  const [context, setContext] = useState<PatientContext | null>(null);
-  const [evaluation, setEvaluation] = useState<RequirementEvaluationResult | null>(null);
+  const [queueRows, setQueueRows] = useState<WorkItemQueueRow[]>([]);
   const [workItem, setWorkItem] = useState<WorkItem | null>(null);
-  const [questionnairePackage, setQuestionnairePackage] = useState<QuestionnairePackage | null>(null);
-  const [formResponse, setFormResponse] = useState<FhirQuestionnaireResponse | null>(null);
-  const [submissionPacket, setSubmissionPacket] = useState<SubmissionPacket | null>(null);
-  const [submissionReceipt, setSubmissionReceipt] = useState<SubmissionReceipt | null>(null);
+  const [operationsHistory, setOperationsHistory] = useState<WorkItemOperationsHistory | null>(null);
   const [statusEvents, setStatusEvents] = useState<StatusEvent[]>([]);
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([]);
-  const [queueRows, setQueueRows] = useState<WorkItemQueueRow[]>([]);
-  const [metrics, setMetrics] = useState<OperationsMetrics | null>(null);
-  const [operationsHistory, setOperationsHistory] = useState<WorkItemOperationsHistory | null>(null);
+  const [questionnairePackage, setQuestionnairePackage] = useState<QuestionnairePackage | null>(null);
   const [evidenceList, setEvidenceList] = useState<EvidenceListResponse | null>(null);
-  const [uploadFilename, setUploadFilename] = useState("local_evidence_note.txt");
-  const [uploadContent, setUploadContent] = useState("Synthetic uploaded evidence note for the local M7 demo.");
-  const [queueStatusFilter, setQueueStatusFilter] = useState("");
-  const [queueOwnerFilter, setQueueOwnerFilter] = useState("");
+  const [submissionPacket, setSubmissionPacket] = useState<SubmissionPacket | null>(null);
+  const [agentRun, setAgentRun] = useState<AgentCockpitRunResponse | null>(null);
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
   const scenario = scenarioOptions.find((candidate) => candidate.scenarioId === scenarioId) ?? scenarioOptions[0];
-  const selectedRequest = scenario.request ?? fallbackRequest;
-
-  const patientName = useMemo(() => {
-    const name = context?.patient?.name?.[0];
-    return name ? [...(name.given ?? []), name.family].filter(Boolean).join(" ") : scenario.publicName;
-  }, [context, scenario.publicName]);
-
-  async function launchShim() {
-    setIsBusy(true);
-    setError(null);
-    try {
-      const params = new URLSearchParams({
-        coverageId: selectedRequest.coverageId,
-        requestResourceType: selectedRequest.requestResourceType,
-        requestResourceId: selectedRequest.requestResourceId
-      });
-      const response = await fetch(`${API_BASE_URL}/context/patient/${selectedRequest.patientId}?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error(`Context lookup failed with ${response.status}`);
-      }
-      setContext(await response.json() as PatientContext);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Context lookup failed");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function evaluateRequirements() {
-    setIsBusy(true);
-    setError(null);
-    setWorkItem(null);
-    setQuestionnairePackage(null);
-    setFormResponse(null);
-    setSubmissionPacket(null);
-      setSubmissionReceipt(null);
-      setStatusEvents([]);
-      setAuditEvents([]);
-      setOperationsHistory(null);
-      setEvidenceList(null);
-      try {
-      const response = await fetch(`${API_BASE_URL}/requirements/evaluate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(selectedRequest)
-      });
-      if (!response.ok) {
-        throw new Error(`Requirement evaluation failed with ${response.status}`);
-      }
-      setEvaluation(await response.json() as RequirementEvaluationResult);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Requirement evaluation failed");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function createWorkItem() {
-    if (!evaluation) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      const response = await fetch(`${API_BASE_URL}/work-items`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          evaluationId: evaluation.evaluationId,
-          ownerUserId: "m2-demo-operator"
-        })
-      });
-      if (!response.ok) {
-        throw new Error(`Work item creation failed with ${response.status}`);
-      }
-      const created = await response.json() as WorkItem;
-      setWorkItem(created);
-      await refreshStatus(created.id);
-      await refreshAudit(created.id);
-      await refreshOperations(created.id);
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Work item creation failed");
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function openFormWorkspace() {
-    if (!workItem) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      const pkg = await postJson<QuestionnairePackage>("/dtr/package", { workItemId: workItem.id });
-      setQuestionnairePackage(pkg);
-      setFormResponse(clone(pkg.questionnaireResponse));
-      setWorkItemStatusFromPackage(pkg, true);
-      await refreshEvidence(workItem.id);
-      await refreshStatus(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
-    } catch (caught) {
-      setError(formatCaught(caught, "Form package lookup failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function saveResponse(markReadyForReview = false) {
-    if (!questionnairePackage || !formResponse) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      const pkg = await postJson<QuestionnairePackage>("/dtr/save-response", {
-        workItemId: questionnairePackage.workItemId,
-        questionnaireResponse: formResponse,
-        revision: questionnairePackage.session.revision,
-        actorUserId: "m2-demo-operator",
-        markReadyForReview
-      });
-      setQuestionnairePackage(pkg);
-      setFormResponse(clone(pkg.questionnaireResponse));
-      setWorkItemStatusFromPackage(pkg);
-      setSubmissionPacket(null);
-      setSubmissionReceipt(null);
-      await refreshWorkItem(pkg.workItemId);
-      await refreshStatus(pkg.workItemId);
-      await refreshAudit(pkg.workItemId);
-      await refreshOperations(pkg.workItemId);
-      await refreshEvidence(pkg.workItemId);
-    } catch (caught) {
-      setError(formatCaught(caught, "Questionnaire save failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function buildPacket() {
-    if (!workItem) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      const packet = await postJson<SubmissionPacket>("/pas/build-packet", {
-        workItemId: workItem.id,
-        actorUserId: "m3-demo-operator"
-      });
-      setSubmissionPacket(packet);
-      setSubmissionReceipt(null);
-      await refreshWorkItem(workItem.id);
-      await refreshStatus(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
-      await refreshEvidence(workItem.id);
-    } catch (caught) {
-      setError(formatCaught(caught, "Packet build failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function submitPacket() {
-    if (!submissionPacket) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      const receipt = await postJson<SubmissionReceipt>("/pas/submit", {
-        packetId: submissionPacket.id,
-        actorUserId: "m3-demo-operator"
-      });
-      setSubmissionReceipt(receipt);
-      await refreshWorkItem(submissionPacket.workItemId);
-      await refreshStatus(submissionPacket.workItemId);
-      await refreshAudit(submissionPacket.workItemId);
-      await refreshOperations(submissionPacket.workItemId);
-    } catch (caught) {
-      setError(formatCaught(caught, "Mock PAS submission failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  function updateAnswer(item: FhirQuestionnaireItem, rawValue: string) {
-    if (!formResponse) {
-      return;
-    }
-    setFormResponse(updateResponseAnswer(formResponse, item, rawValue));
-  }
-
-  function resetToPrefill(item: FhirQuestionnaireItem) {
-    if (!formResponse || !questionnairePackage) {
-      return;
-    }
-    const override = questionnairePackage.session.prefillOverrides.find((candidate) => candidate.linkId === item.linkId);
-    const packageItem = findResponseItem(questionnairePackage.questionnaireResponse.item, item.linkId);
-    const originalAnswer = override
-      ? valueToAnswer(item, override.originalValue)
-      : packageItem?.answer?.[0];
-    setFormResponse(updateResponseAnswerObject(formResponse, item.linkId, originalAnswer));
-  }
-
-  function setWorkItemStatusFromPackage(pkg: QuestionnairePackage, preservePacketState = false) {
-    setWorkItem((current) => current
-      ? {
-          ...current,
-          status: preservePacketState && ["packet_ready", "submitted"].includes(current.status)
-            ? current.status
-            : pkg.session.status === "review_ready" ? "review_ready" : "questionnaire_in_progress"
-        }
-      : current);
-  }
-
-  async function refreshWorkItem(workItemId: string) {
-    setWorkItem(await getJson<WorkItem>(`/work-items/${workItemId}`));
-  }
-
-  async function refreshStatus(workItemId: string) {
-    setStatusEvents(await getJson<StatusEvent[]>(`/work-items/${workItemId}/status`));
-  }
-
-  async function refreshAudit(workItemId: string) {
-    setAuditEvents(await getJson<AuditEvent[]>(`/work-items/${workItemId}/audit`));
-  }
-
-  async function refreshEvidence(workItemId = workItem?.id) {
-    if (!workItemId) {
-      return;
-    }
-    setEvidenceList(await getJson<EvidenceListResponse>(`/work-items/${workItemId}/evidence`));
-  }
-
-  async function attachFixture(fixtureId: string) {
-    if (!workItem) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/attach-fixture`, {
-        fixtureId,
-        actorUserId: "m7-demo-operator"
-      });
-      await refreshEvidence(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
-    } catch (caught) {
-      setError(formatCaught(caught, "Evidence fixture attach failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function uploadEvidence() {
-    if (!workItem) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/upload`, {
-        filename: uploadFilename,
-        contentType: "text/plain",
-        base64Data: btoa(uploadContent),
-        actorUserId: "m7-demo-operator"
-      });
-      await refreshEvidence(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
-    } catch (caught) {
-      setError(formatCaught(caught, "Evidence upload failed"));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function updateEvidenceStatus(evidenceId: string, action: "accept" | "remove") {
-    if (!workItem) {
-      return;
-    }
-    setIsBusy(true);
-    setError(null);
-    try {
-      await postJson<EvidenceAttachment>(`/work-items/${workItem.id}/evidence/${evidenceId}/${action}`, {
-        actorUserId: "m7-demo-operator"
-      });
-      await refreshEvidence(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
-    } catch (caught) {
-      setError(formatCaught(caught, `Evidence ${action} failed`));
-    } finally {
-      setIsBusy(false);
-    }
-  }
-
-  async function refreshOperations(workItemId = workItem?.id) {
-    const params = new URLSearchParams();
-    if (queueStatusFilter) {
-      params.set("status", queueStatusFilter);
-    }
-    if (queueOwnerFilter) {
-      params.set("owner", queueOwnerFilter);
-    }
-    params.set("sort", "age_desc");
-    setQueueRows(await getJson<WorkItemQueueRow[]>(`/work-items?${params.toString()}`));
-    setMetrics(await getJson<OperationsMetrics>("/operations/metrics"));
-    if (workItemId) {
-      setOperationsHistory(await getJson<WorkItemOperationsHistory>(`/work-items/${workItemId}/operations`));
-    }
-  }
+  const latestMoreInfo = operationsHistory?.moreInfoRequests.at(-1);
+  const latestPayerUpdate = operationsHistory?.payerUpdates.at(-1);
+  const nextAction = useMemo(() => describeNextAction(workItem, agentRun, latestMoreInfo), [workItem, agentRun, latestMoreInfo]);
+  const caseSummary = workItem?.requirementResult.requestSummary;
 
   async function seedDemoCases() {
     setIsBusy(true);
     setError(null);
     try {
       const created = await postJson<WorkItem[]>("/demo/seed-work-items", {
-        count: 3,
-        scenarioId
+        count: 2,
+        scenarioId,
+        ownerUserId: "m5-cockpit-operator"
       });
-      const selected = created[0];
-      setWorkItem(selected);
-      setQuestionnairePackage(null);
-      setFormResponse(null);
-      setSubmissionPacket(null);
-      setSubmissionReceipt(null);
-      await refreshStatus(selected.id);
-      await refreshAudit(selected.id);
-      await refreshOperations(selected.id);
-      await refreshEvidence(selected.id);
+      await loadCase(created[0].id, { resetAgentRun: true });
     } catch (caught) {
       setError(formatCaught(caught, "Demo case seeding failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function refreshQueue() {
+    setIsBusy(true);
+    setError(null);
+    try {
+      setQueueRows(await getJson<WorkItemQueueRow[]>("/work-items?sort=age_desc"));
+    } catch (caught) {
+      setError(formatCaught(caught, "Queue refresh failed"));
     } finally {
       setIsBusy(false);
     }
@@ -458,17 +159,35 @@ export default function Home() {
     setIsBusy(true);
     setError(null);
     try {
-      await refreshWorkItem(row.workItemId);
-      setQuestionnairePackage(null);
-      setFormResponse(null);
-      setSubmissionPacket(null);
-      setSubmissionReceipt(null);
-      await refreshStatus(row.workItemId);
-      await refreshAudit(row.workItemId);
-      await refreshOperations(row.workItemId);
-      await refreshEvidence(row.workItemId);
+      await loadCase(row.workItemId, { resetAgentRun: true });
     } catch (caught) {
-      setError(formatCaught(caught, "Queue selection failed"));
+      setError(formatCaught(caught, "Case load failed"));
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
+  async function runAgentTeam() {
+    if (!workItem) {
+      return;
+    }
+    setIsBusy(true);
+    setError(null);
+    try {
+      const response = await postJson<AgentCockpitRunResponse>("/agent-runs/prior-auth-deterministic", {
+        workItemId: workItem.id,
+        actorUserId: "m5-cockpit-operator"
+      });
+      setAgentRun(response);
+      setWorkItem(response.workItem);
+      setQuestionnairePackage(response.questionnairePackage);
+      setEvidenceList(response.evidence);
+      setSubmissionPacket(response.packet);
+      setStatusEvents(response.statusTimeline);
+      setAuditEvents(response.auditTrace);
+      await refreshOperations(response.workItem.id);
+    } catch (caught) {
+      setError(formatCaught(caught, "Agent run failed"));
     } finally {
       setIsBusy(false);
     }
@@ -484,20 +203,11 @@ export default function Home() {
       const moreInfo = moreInfoByServiceLine[workItem.serviceLine] ?? moreInfoByServiceLine.mri_lumbar_spine;
       await postJson(`/work-items/${workItem.id}/request-more-info`, {
         message: moreInfo.message,
-        requestedItems: [
-          {
-            code: moreInfo.code,
-            label: moreInfo.label,
-            required: true
-          }
-        ],
+        requestedItems: [{ code: moreInfo.code, label: moreInfo.label, required: true }],
         dueAt: "2026-05-02T00:00:00.000Z",
         actor: "mock-payer"
       });
-      await refreshWorkItem(workItem.id);
-      await refreshStatus(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
+      await loadCase(workItem.id, { resetAgentRun: false });
     } catch (caught) {
       setError(formatCaught(caught, "More-info request failed"));
     } finally {
@@ -524,10 +234,7 @@ export default function Home() {
             }
           : undefined
       });
-      await refreshWorkItem(workItem.id);
-      await refreshStatus(workItem.id);
-      await refreshAudit(workItem.id);
-      await refreshOperations(workItem.id);
+      await loadCase(workItem.id, { resetAgentRun: false });
     } catch (caught) {
       setError(formatCaught(caught, "Payer status update failed"));
     } finally {
@@ -535,211 +242,135 @@ export default function Home() {
     }
   }
 
+  async function loadCase(workItemId: string, options: { resetAgentRun: boolean }) {
+    const [loadedWorkItem, loadedStatus, loadedAudit, loadedEvidence] = await Promise.all([
+      getJson<WorkItem>(`/work-items/${workItemId}`),
+      getJson<StatusEvent[]>(`/work-items/${workItemId}/status`),
+      getJson<AuditEvent[]>(`/work-items/${workItemId}/audit`),
+      getJson<EvidenceListResponse>(`/work-items/${workItemId}/evidence`)
+    ]);
+    setWorkItem(loadedWorkItem);
+    setStatusEvents(loadedStatus);
+    setAuditEvents(loadedAudit);
+    setEvidenceList(loadedEvidence);
+    setQuestionnairePackage(null);
+    setSubmissionPacket(null);
+    if (options.resetAgentRun) {
+      setAgentRun(null);
+    }
+    await refreshOperations(workItemId);
+  }
+
+  async function refreshOperations(workItemId?: string) {
+    const [rows, history] = await Promise.all([
+      getJson<WorkItemQueueRow[]>("/work-items?sort=age_desc"),
+      workItemId ? getJson<WorkItemOperationsHistory>(`/work-items/${workItemId}/operations`) : Promise.resolve(null)
+    ]);
+    setQueueRows(rows);
+    setOperationsHistory(history);
+  }
+
   return (
     <main>
-      <section className="topBar">
-        <div>
-          <p className="eyebrow">M4 operations workbench demo</p>
-          <h1>Open Prior Auth Workbench</h1>
-          <p className="muted">{scenario.publicName}</p>
+      <section className="cockpitHeader">
+        <div className="identity">
+          <p className="eyebrow">M5 Agent Cockpit</p>
+          <h1>{caseSummary?.patientName ?? scenario.publicName}</h1>
+          <p className="muted">
+            {caseSummary
+              ? `${caseSummary.serviceDescription} - ${caseSummary.payerName}`
+              : "Seed or select a synthetic case to begin."}
+          </p>
         </div>
-        <div className="statusPill">Synthetic data only</div>
-      </section>
-
-      <section className="workspace">
-        <aside className="rail">
-          <label className="field compactField">
+        <div className="headerControls">
+          <label className="controlField">
             <span>Scenario</span>
             <select
               value={scenarioId}
               onChange={(event) => {
                 setScenarioId(event.target.value as typeof scenarioId);
-                setContext(null);
-                setEvaluation(null);
                 setWorkItem(null);
-                setQuestionnairePackage(null);
-                setFormResponse(null);
-                setSubmissionPacket(null);
-                setSubmissionReceipt(null);
+                setOperationsHistory(null);
                 setStatusEvents([]);
                 setAuditEvents([]);
-                setOperationsHistory(null);
+                setQuestionnairePackage(null);
                 setEvidenceList(null);
+                setSubmissionPacket(null);
+                setAgentRun(null);
               }}
             >
               {scenarioOptions.map((option) => (
-                <option key={option.scenarioId} value={option.scenarioId}>
-                  {option.publicName}
-                </option>
+                <option key={option.scenarioId} value={option.scenarioId}>{option.publicName}</option>
               ))}
             </select>
           </label>
-          <button type="button" onClick={launchShim} disabled={isBusy}>
-            Launch shim
-          </button>
-          <button type="button" onClick={seedDemoCases} disabled={isBusy}>
-            Seed demo cases
-          </button>
-          <button type="button" onClick={() => refreshOperations()} disabled={isBusy}>
-            Refresh queue
-          </button>
-          <button type="button" onClick={evaluateRequirements} disabled={isBusy}>
-            Evaluate requirements
-          </button>
-          <button type="button" onClick={createWorkItem} disabled={isBusy || !evaluation}>
-            Create work item
-          </button>
-          <button type="button" onClick={openFormWorkspace} disabled={isBusy || !workItem}>
-            Open form workspace
-          </button>
-          <button type="button" onClick={() => refreshEvidence()} disabled={isBusy || !workItem}>
-            Refresh evidence
-          </button>
-          <button type="button" onClick={() => saveResponse(false)} disabled={isBusy || !questionnairePackage}>
-            Save draft
-          </button>
-          <button type="button" onClick={() => saveResponse(true)} disabled={isBusy || !questionnairePackage}>
-            Mark ready
-          </button>
-          <button
-            type="button"
-            onClick={buildPacket}
-            disabled={isBusy || !workItem || !["review_ready", "packet_ready"].includes(workItem.status)}
-          >
-            Build packet
-          </button>
-          <button type="button" onClick={submitPacket} disabled={isBusy || !submissionPacket}>
-            Submit mock PAS
-          </button>
-          <button type="button" onClick={() => recordPayerStatus("pended")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
-            Mark pended
-          </button>
-          <button type="button" onClick={requestMoreInfo} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
-            Request more info
-          </button>
-          <button type="button" onClick={() => recordPayerStatus("approved")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
-            Approve
-          </button>
-          <button type="button" onClick={() => recordPayerStatus("denied")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
-            Deny
-          </button>
-          <button type="button" onClick={() => recordPayerStatus("cancelled")} disabled={isBusy || !workItem || workItem.status !== "submitted"}>
-            Cancel case
-          </button>
-        </aside>
-
-        <OperationsPanel
-          rows={queueRows}
-          metrics={metrics}
-          history={operationsHistory}
-          selectedWorkItemId={workItem?.id ?? null}
-          statusFilter={queueStatusFilter}
-          ownerFilter={queueOwnerFilter}
-          onStatusFilterChange={setQueueStatusFilter}
-          onOwnerFilterChange={setQueueOwnerFilter}
-          onRefresh={() => refreshOperations()}
-          onSelect={selectQueueRow}
-        />
-
-        <section className="panel contextPanel">
-          <div className="panelHeader">
-            <p className="eyebrow">Patient and order context</p>
-            <h2>{patientName}</h2>
+          <div className="statusStack">
+            <span className="statusPill">Synthetic data only</span>
+            <strong>{workItem ? titleCase(workItem.status) : "No case selected"}</strong>
           </div>
-          <dl className="facts">
-            <div>
-              <dt>Coverage</dt>
-              <dd>{context?.coverage?.class?.[0]?.name ?? "Not loaded"}</dd>
-            </div>
-            <div>
-              <dt>Request</dt>
-              <dd>{context?.request?.code?.text ?? context?.request?.codeCodeableConcept?.text ?? "Not loaded"}</dd>
-            </div>
-            <div>
-              <dt>Diagnosis</dt>
-              <dd>{context?.conditions?.[0]?.code?.text ?? "Not loaded"}</dd>
-            </div>
-            <div>
-              <dt>Evidence</dt>
-              <dd>{context?.observations?.[0]?.valueString ?? "Not loaded"}</dd>
-            </div>
-          </dl>
-        </section>
+        </div>
+      </section>
 
-        <section className="panel resultPanel">
+      <section className="commandBand">
+        <button type="button" onClick={seedDemoCases} disabled={isBusy}>Seed selected scenario</button>
+        <button type="button" onClick={refreshQueue} disabled={isBusy}>Refresh queue</button>
+        <button type="button" onClick={runAgentTeam} disabled={isBusy || !workItem || Boolean(agentRun?.submitApproval.status === "pending")}>
+          Run deterministic agent team
+        </button>
+        <button type="button" onClick={() => recordPayerStatus("pended")} disabled={isBusy || workItem?.status !== "submitted"}>Mark pended</button>
+        <button type="button" onClick={requestMoreInfo} disabled={isBusy || workItem?.status !== "submitted"}>Request more info</button>
+        <button type="button" onClick={() => recordPayerStatus("approved")} disabled={isBusy || workItem?.status !== "submitted"}>Approve</button>
+        <button type="button" onClick={() => recordPayerStatus("denied")} disabled={isBusy || workItem?.status !== "submitted"}>Deny</button>
+      </section>
+
+      <section className="caseGrid">
+        <section className="panel nextActionPanel">
           <div className="panelHeader">
-            <p className="eyebrow">Requirement evaluation</p>
-            <h2>{evaluation?.evaluationStatus.replaceAll("_", " ") ?? "Waiting for evaluation"}</h2>
+            <p className="eyebrow">Current blocker / next action</p>
+            <h2>{nextAction.title}</h2>
           </div>
-          {evaluation ? (
-            <div className="resultGrid">
-              <Metric label="Evaluation ID" value={evaluation.evaluationId} />
-              <Metric label="Matched rule" value={evaluation.matchedRuleId ?? "None"} />
-              <Metric label="Next action" value={evaluation.nextAction.replaceAll("_", " ")} />
-              <Metric label="Missing data" value={String(evaluation.missingData.length)} />
-            </div>
-          ) : (
-            <p className="muted">Run the deterministic M1 rule pack to see prior-auth requirements.</p>
-          )}
-          {evaluation?.explanatoryNotes.map((note) => (
-            <p className="note" key={note}>{note}</p>
-          ))}
+          <p className="largeNote">{nextAction.detail}</p>
+          <div className="miniFacts">
+            <Metric label="Work item" value={workItem?.id ?? "None"} />
+            <Metric label="Owner" value={workItem?.ownerUserId ?? "Unassigned"} />
+            <Metric label="Latest payer update" value={latestPayerUpdate?.status ?? "None"} />
+            <Metric label="More info" value={formatMoreInfo(latestMoreInfo)} />
+          </div>
         </section>
 
         <section className="panel queuePanel">
           <div className="panelHeader">
-            <p className="eyebrow">Queue shell</p>
-            <h2>{workItem ? workItem.id : "No active work item"}</h2>
+            <p className="eyebrow">Case queue</p>
+            <h2>{queueRows.length} case{queueRows.length === 1 ? "" : "s"}</h2>
           </div>
-          {workItem ? (
-            <dl className="facts compact">
-              <div>
-                <dt>Status</dt>
-                <dd>{workItem.status.replaceAll("_", " ")}</dd>
-              </div>
-              <div>
-                <dt>QuestionnaireResponse</dt>
-                <dd>{questionnairePackage?.questionnaireResponse.status ?? "Not opened"}</dd>
-              </div>
-              <div>
-                <dt>Session revision</dt>
-                <dd>{questionnairePackage?.session.revision ?? "Not opened"}</dd>
-              </div>
-              <div>
-                <dt>Owner</dt>
-                <dd>{workItem.ownerUserId}</dd>
-              </div>
-            </dl>
-          ) : (
-            <p className="muted">Create a work item only after evaluating the golden scenario.</p>
-          )}
+          <div className="queueList">
+            {queueRows.length > 0 ? queueRows.map((row) => (
+              <button
+                className={row.workItemId === workItem?.id ? "queueRow selectedQueueRow" : "queueRow"}
+                key={row.workItemId}
+                type="button"
+                onClick={() => selectQueueRow(row)}
+              >
+                <span>
+                  <strong>{row.patientName}</strong>
+                  <em>{row.serviceDescription}</em>
+                </span>
+                <span>
+                  <strong>{titleCase(row.effectiveStatus)}</strong>
+                  <em>{row.nextAction}</em>
+                </span>
+              </button>
+            )) : (
+              <p className="muted">Seed demo cases or refresh queue.</p>
+            )}
+          </div>
         </section>
 
-        <SubmissionPanel
-          packet={submissionPacket}
-          receipt={submissionReceipt}
-          events={statusEvents}
-          auditEvents={auditEvents}
-        />
-
-        <EvidencePanel
-          evidence={evidenceList}
-          disabled={isBusy || !workItem}
-          uploadFilename={uploadFilename}
-          uploadContent={uploadContent}
-          onUploadFilenameChange={setUploadFilename}
-          onUploadContentChange={setUploadContent}
-          onAttachFixture={attachFixture}
-          onUpload={uploadEvidence}
-          onUpdateStatus={updateEvidenceStatus}
-        />
-
-        <QuestionnaireWorkspace
-          pkg={questionnairePackage}
-          response={formResponse}
-          onChange={updateAnswer}
-          onReset={resetToPrefill}
-        />
+        <AgentTimeline run={agentRun} />
+        <EvidenceBoard run={agentRun} evidence={evidenceList} />
+        <QuestionnaireSummary pkg={questionnairePackage} />
+        <PacketPreview packet={submissionPacket} />
+        <BusinessTimeline events={statusEvents} auditEvents={auditEvents} />
       </section>
 
       {error && <p className="error">{error}</p>}
@@ -747,413 +378,179 @@ export default function Home() {
   );
 }
 
-function SubmissionPanel({
-  packet,
-  receipt,
-  events,
-  auditEvents
-}: {
-  packet: SubmissionPacket | null;
-  receipt: SubmissionReceipt | null;
-  events: StatusEvent[];
-  auditEvents: AuditEvent[];
-}) {
-  const claim = packet?.bundle.entry.find((entry) => entry.resource.resourceType === "Claim")?.resource;
-  const claimResponse = receipt?.responseBundle.entry.find((entry) => entry.resource.resourceType === "ClaimResponse")?.resource;
+function AgentTimeline({ run }: { run: AgentCockpitRunResponse | null }) {
+  const visibleTrace = run?.trace.filter((event) =>
+    event.type.startsWith("agent.")
+    || event.type === "run.started"
+    || event.type === "approval.requested"
+    || event.type === "approval.approved"
+    || event.type === "tool_call.succeeded"
+  ) ?? [];
 
   return (
-    <section className="panel submissionPanel">
-      <div className="panelHeader">
-        <p className="eyebrow">PAS-style local packet</p>
-        <h2>{receipt ? "Mock PAS submitted" : packet ? "Packet ready" : "No packet built"}</h2>
-      </div>
-
-      {packet ? (
-        <div className="resultGrid">
-          <Metric label="Packet ID" value={packet.id} />
-          <Metric label="Claim use" value={String(claim?.use ?? "Not built")} />
-          <Metric label="QR revision" value={String(packet.snapshot.questionnaireResponseRevision)} />
-          <Metric label="Attachments" value={`${packet.attachmentManifest.attachments.length} fixtures`} />
+    <section className="panel timelinePanel">
+      <div className="panelHeader splitHeader">
+        <div>
+          <p className="eyebrow">Agent run timeline</p>
+          <h2>{run ? `${run.run.id} - ${titleCase(run.run.status)}` : "No run yet"}</h2>
         </div>
+        {run?.submitApproval && <span className="warningPill">{titleCase(run.submitApproval.status)} submit approval</span>}
+      </div>
+      {run ? (
+        <>
+          <div className="stepStrip">
+            {run.steps.map((step) => (
+              <div className="stepCard" key={`${step.agent}-${step.toolName ?? step.summary}`}>
+                <strong>{titleCase(step.agent)}</strong>
+                <span>{step.toolName ?? "agent step"}</span>
+                <em>{titleCase(step.status)}</em>
+              </div>
+            ))}
+          </div>
+          <div className="traceList">
+            {visibleTrace.map((event) => <TraceEventRow event={event} key={event.eventId} />)}
+          </div>
+        </>
       ) : (
-        <p className="muted">Build a packet after the questionnaire is marked ready for review.</p>
+        <p className="muted">Run the deterministic agent team after selecting a work item.</p>
       )}
-
-      {packet && (
-        <p className="note">{packet.attachmentManifest.missingFixtureReason}</p>
-      )}
-
-      {receipt && (
-        <div className="receiptBox">
-          <Metric label="Tracking ID" value={receipt.trackingId} />
-          <Metric label="Transport" value={receipt.transport} />
-          <Metric label="ClaimResponse" value={String(claimResponse?.id ?? "Not returned")} />
-          <Metric label="Idempotent" value={String(receipt.idempotent)} />
-        </div>
-      )}
-
-      <div className="timeline">
-        <p className="eyebrow">Status timeline</p>
-        {events.length > 0 ? events.map((event) => (
-          <div className="timelineEvent" key={event.eventId}>
-            <strong>{event.toStatus.replaceAll("_", " ")}</strong>
-            <span>{event.fromStatus ? `${event.fromStatus.replaceAll("_", " ")} -> ` : ""}{event.causedBy}</span>
-            <small>{event.actor} - {event.packetId ?? event.receiptId ?? event.eventId}</small>
-          </div>
-        )) : (
-          <p className="muted">Create a work item to start the lifecycle timeline.</p>
-        )}
-      </div>
-
-      <div className="auditTrail">
-        <p className="eyebrow">Audit trail</p>
-        {auditEvents.length > 0 ? auditEvents.map((event) => (
-          <div className="auditEvent" key={event.eventId}>
-            <strong>{event.action}</strong>
-            <span>{event.actor} - {event.resourceType}/{event.resourceId}</span>
-            <small>{formatAuditTime(event.timestamp)}</small>
-            <em>{event.beforeJson === null ? "Before empty" : "Before captured"} / {event.afterJson === null ? "After empty" : "After captured"}</em>
-          </div>
-        )) : (
-          <p className="muted">Audit entries appear after a work item changes state.</p>
-        )}
-      </div>
     </section>
   );
 }
 
-function EvidencePanel({
-  evidence,
-  disabled,
-  uploadFilename,
-  uploadContent,
-  onUploadFilenameChange,
-  onUploadContentChange,
-  onAttachFixture,
-  onUpload,
-  onUpdateStatus
+function TraceEventRow({ event }: { event: AgentCockpitTraceEvent }) {
+  return (
+    <div className="traceRow">
+      <strong>{event.sequence}. {event.type}</strong>
+      <span>{event.message}</span>
+      <small>{event.actor} - {formatTime(event.at)}</small>
+    </div>
+  );
+}
+
+function EvidenceBoard({
+  run,
+  evidence
 }: {
+  run: AgentCockpitRunResponse | null;
   evidence: EvidenceListResponse | null;
-  disabled: boolean;
-  uploadFilename: string;
-  uploadContent: string;
-  onUploadFilenameChange: (value: string) => void;
-  onUploadContentChange: (value: string) => void;
-  onAttachFixture: (fixtureId: string) => void;
-  onUpload: () => void;
-  onUpdateStatus: (evidenceId: string, action: "accept" | "remove") => void;
 }) {
+  const rows = run?.evidenceBoard ?? [];
+
   return (
     <section className="panel evidencePanel">
       <div className="panelHeader">
-        <p className="eyebrow">Evidence attachments</p>
-        <h2>{evidence ? `${evidence.attachments.length} attachment${evidence.attachments.length === 1 ? "" : "s"}` : "No evidence loaded"}</h2>
+        <p className="eyebrow">Evidence-to-requirement board</p>
+        <h2>{rows.length ? `${rows.length} requirement checks` : "No board loaded"}</h2>
       </div>
-
-      <div className="evidenceFixtures">
-        {evidence?.availableFixtures.map((fixture) => (
-          <button
-            key={fixture.fixtureId}
-            type="button"
-            disabled={disabled}
-            onClick={() => onAttachFixture(fixture.fixtureId)}
-          >
-            Attach {fixture.title}
-          </button>
-        )) ?? <p className="muted">Refresh evidence after creating a work item.</p>}
-      </div>
-
-      <div className="uploadBox">
-        <label>
-          <span>Filename</span>
-          <input value={uploadFilename} disabled={disabled} onChange={(event) => onUploadFilenameChange(event.target.value)} />
-        </label>
-        <label>
-          <span>Text upload content</span>
-          <textarea value={uploadContent} disabled={disabled} onChange={(event) => onUploadContentChange(event.target.value)} />
-        </label>
-        <button type="button" disabled={disabled} onClick={onUpload}>Upload local text evidence</button>
-      </div>
-
-      <div className="evidenceList">
-        {evidence?.attachments.length ? evidence.attachments.map((attachment) => (
-          <div className="evidenceRow" key={attachment.id}>
-            <span>
-              <strong>{attachment.title}</strong>
-              <em>{attachment.filename} - {attachment.contentType}</em>
-            </span>
-            <span>
-              <strong>{attachment.status.replaceAll("-", " ")}</strong>
-              <em>{attachment.contentMode.replaceAll("-", " ")}</em>
-            </span>
-            <span className="evidenceActions">
-              <button type="button" disabled={disabled || attachment.status === "accepted" || attachment.status === "included-in-packet"} onClick={() => onUpdateStatus(attachment.id, "accept")}>Accept</button>
-              <button type="button" disabled={disabled || attachment.status === "removed" || attachment.status === "included-in-packet"} onClick={() => onUpdateStatus(attachment.id, "remove")}>Remove</button>
-            </span>
-          </div>
-        )) : (
-          <p className="muted">Attach a synthetic fixture or upload a local text note before building the packet.</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function OperationsPanel({
-  rows,
-  metrics,
-  history,
-  selectedWorkItemId,
-  statusFilter,
-  ownerFilter,
-  onStatusFilterChange,
-  onOwnerFilterChange,
-  onRefresh,
-  onSelect
-}: {
-  rows: WorkItemQueueRow[];
-  metrics: OperationsMetrics | null;
-  history: WorkItemOperationsHistory | null;
-  selectedWorkItemId: string | null;
-  statusFilter: string;
-  ownerFilter: string;
-  onStatusFilterChange: (value: string) => void;
-  onOwnerFilterChange: (value: string) => void;
-  onRefresh: () => void;
-  onSelect: (row: WorkItemQueueRow) => void;
-}) {
-  const latestPayerUpdate = history?.payerUpdates.at(-1);
-  const latestMoreInfo = history?.moreInfoRequests.at(-1);
-
-  return (
-    <section className="panel operationsPanel">
-      <div className="panelHeader">
-        <p className="eyebrow">Operations queue</p>
-        <h2>{rows.length} case{rows.length === 1 ? "" : "s"} in view</h2>
-      </div>
-
-      <div className="queueFilters">
-        <label>
-          <span>Status filter</span>
-          <input
-            value={statusFilter}
-            placeholder="submitted,pended"
-            onChange={(event) => onStatusFilterChange(event.target.value)}
-          />
-        </label>
-        <label>
-          <span>Owner filter</span>
-          <input
-            value={ownerFilter}
-            placeholder="unassigned"
-            onChange={(event) => onOwnerFilterChange(event.target.value)}
-          />
-        </label>
-        <button type="button" onClick={onRefresh}>Apply filters</button>
-      </div>
-
-      <div className="metricsStrip">
-        <Metric label="Open" value={String(metrics?.openWorkItems ?? 0)} />
-        <Metric label="Terminal" value={String(metrics?.terminalWorkItems ?? 0)} />
-        <Metric label="Approval rate" value={formatRate(metrics?.approvalRate)} />
-        <Metric label="Decision median" value={formatDuration(metrics?.medianSubmissionToDecisionMs)} />
-      </div>
-
-      <div className="queueList">
-        {rows.length > 0 ? rows.map((row) => (
-          <button
-            className={row.workItemId === selectedWorkItemId ? "queueRow selectedQueueRow" : "queueRow"}
-            key={row.workItemId}
-            type="button"
-            onClick={() => onSelect(row)}
-          >
-            <span>
-              <strong>{row.patientName}</strong>
-              <em>{row.serviceDescription}</em>
-            </span>
-            <span>
-              <strong>{row.effectiveStatus.replaceAll("_", " ")}</strong>
-              <em>{row.status === row.effectiveStatus ? "Internal status" : `Internal: ${row.status.replaceAll("_", " ")}`}</em>
-            </span>
-            <span>
-              <strong>{formatDuration(row.ageMs)}</strong>
-              <em>{row.nextAction}</em>
-            </span>
-          </button>
-        )) : (
-          <p className="muted">Seed demo cases or refresh the queue after creating a work item.</p>
-        )}
-      </div>
-
-      <div className="operationsHistory">
-        <p className="eyebrow">Selected case operations</p>
-        {latestPayerUpdate ? (
-          <p className="note">
-            Latest payer update: {latestPayerUpdate.status}
-            {latestPayerUpdate.reason ? ` - ${latestPayerUpdate.reason.display}: ${latestPayerUpdate.reason.detail}` : ""}
-          </p>
-        ) : (
-          <p className="muted">No payer updates recorded.</p>
-        )}
-        {latestMoreInfo && (
-          <p className="note">
-            More info: {latestMoreInfo.message}
-            {latestMoreInfo.resolvedAt ? " (resolved)" : ""}
-          </p>
-        )}
-        {history?.operationEvents.slice(-4).map((event) => (
-          <div className="timelineEvent" key={event.id}>
-            <strong>{event.type.replaceAll("_", " ")}</strong>
-            <span>{event.actor}</span>
-            <small>{formatAuditTime(event.createdAt)}</small>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function QuestionnaireWorkspace({
-  pkg,
-  response,
-  onChange,
-  onReset
-}: {
-  pkg: QuestionnairePackage | null;
-  response: FhirQuestionnaireResponse | null;
-  onChange: (item: FhirQuestionnaireItem, rawValue: string) => void;
-  onReset: (item: FhirQuestionnaireItem) => void;
-}) {
-  if (!pkg || !response) {
-    return (
-      <section className="panel formPanel">
-        <div className="panelHeader">
-          <p className="eyebrow">Form workspace</p>
-          <h2>No questionnaire package loaded</h2>
-        </div>
-        <p className="muted">Open the form workspace after creating a work item.</p>
-      </section>
-    );
-  }
-
-  const issueCount = pkg.validation.issues.length;
-
-  return (
-    <section className="panel formPanel">
-      <div className="panelHeader formHeader">
-        <div>
-          <p className="eyebrow">Local DTR-like package</p>
-          <h2>{pkg.questionnaire.title ?? pkg.questionnaire.id}</h2>
-        </div>
-        <div className="completion">
-          {pkg.completion.requiredAnswered}/{pkg.completion.requiredTotal} required
-          <strong>{pkg.completion.percentage}%</strong>
-        </div>
-      </div>
-
-      <div className={pkg.validation.valid ? "validationSummary valid" : "validationSummary invalid"}>
-        {pkg.validation.valid ? "Validation passed" : `${issueCount} validation issue${issueCount === 1 ? "" : "s"}`}
-      </div>
-
-      <div className="formGrid">
-        {pkg.questionnaire.item.map((item) => (
-          <QuestionnaireField
-            key={item.linkId}
-            item={item}
-            response={response}
-            prefill={pkg.prefill.find((candidate) => candidate.linkId === item.linkId)}
-            issues={pkg.validation.issues.filter((issue) => issue.linkId === item.linkId)}
-            edited={isFieldEdited(pkg, response, item)}
-            disabled={!isEnabled(item, response)}
-            onChange={onChange}
-            onReset={onReset}
-          />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function QuestionnaireField({
-  item,
-  response,
-  prefill,
-  issues,
-  edited,
-  disabled,
-  onChange,
-  onReset
-}: {
-  item: FhirQuestionnaireItem;
-  response: FhirQuestionnaireResponse;
-  prefill?: PrefillSummary;
-  issues: ValidationIssue[];
-  edited: boolean;
-  disabled: boolean;
-  onChange: (item: FhirQuestionnaireItem, rawValue: string) => void;
-  onReset: (item: FhirQuestionnaireItem) => void;
-}) {
-  const responseItem = findResponseItem(response.item, item.linkId);
-  const value = controlValue(responseItem?.answer?.[0]);
-
-  return (
-    <label className={disabled ? "field disabledField" : "field"}>
-      <span className="fieldTopline">
-        <span>{item.text ?? item.linkId}{item.required ? " *" : ""}</span>
-        <span className="badges">
-          {prefill && <em>Prefilled from {prefill.sourceResourceType}</em>}
-          {edited && <strong>Edited</strong>}
-        </span>
-      </span>
-
-      {item.type === "text" ? (
-        <textarea
-          value={typeof value === "string" ? value : ""}
-          disabled={disabled}
-          onChange={(event) => onChange(item, event.target.value)}
-        />
-      ) : item.type === "boolean" ? (
-        <select
-          value={typeof value === "boolean" ? String(value) : ""}
-          disabled={disabled}
-          onChange={(event) => onChange(item, event.target.value)}
-        >
-          <option value="">Select</option>
-          <option value="true">Yes</option>
-          <option value="false">No</option>
-        </select>
-      ) : item.type === "choice" ? (
-        <select
-          value={typeof value === "object" && value && "code" in value ? String(value.code) : ""}
-          disabled={disabled}
-          onChange={(event) => onChange(item, event.target.value)}
-        >
-          <option value="">Select</option>
-          {item.answerOption?.map((option) => (
-            <option key={option.valueCoding?.code ?? option.valueString} value={option.valueCoding?.code ?? option.valueString}>
-              {option.valueCoding?.display ?? option.valueString}
-            </option>
+      {rows.length > 0 ? (
+        <div className="evidenceBoard">
+          {rows.map((row) => (
+            <div className="evidenceRequirement" key={row.requirementCode}>
+              <span>
+                <strong>{row.requirementLabel}</strong>
+                <em>{row.requirementDetail}</em>
+              </span>
+              <span>
+                <strong>{titleCase(row.status)}</strong>
+                <em>{row.sourceLabel}</em>
+              </span>
+              <span>
+                <strong>{row.evidenceAttachmentIds.length} attached</strong>
+                <em>{row.fixtureIds.length} fixture{row.fixtureIds.length === 1 ? "" : "s"} available</em>
+              </span>
+            </div>
           ))}
-        </select>
+        </div>
       ) : (
-        <input
-          value={typeof value === "string" ? value : ""}
-          disabled={disabled}
-          onChange={(event) => onChange(item, event.target.value)}
-        />
+        <p className="muted">
+          {evidence ? `${evidence.availableFixtures.length} fixtures available before agent run.` : "Evidence loads after case selection."}
+        </p>
       )}
+    </section>
+  );
+}
 
-      {prefill && (
-        <button className="resetButton" type="button" onClick={() => onReset(item)}>
-          Reset to prefill
-        </button>
+function QuestionnaireSummary({ pkg }: { pkg: QuestionnairePackage | null }) {
+  return (
+    <section className="panel summaryPanel">
+      <div className="panelHeader">
+        <p className="eyebrow">Questionnaire package summary</p>
+        <h2>{pkg ? pkg.questionnaire.title ?? pkg.questionnaireCanonical : "No package loaded"}</h2>
+      </div>
+      {pkg ? (
+        <div className="miniFacts">
+          <Metric label="Completion" value={`${pkg.completion.requiredAnswered}/${pkg.completion.requiredTotal} required`} />
+          <Metric label="Validation" value={pkg.validation.valid ? "Valid" : `${pkg.validation.issues.length} issue(s)`} />
+          <Metric label="Revision" value={String(pkg.session.revision)} />
+          <Metric label="Prefill sources" value={String(pkg.prefill.length)} />
+        </div>
+      ) : (
+        <p className="muted">Agent run opens and saves the deterministic DTR package.</p>
       )}
-      {issues.map((issue) => (
-        <span className={issue.severity === "warning" ? "fieldIssue warning" : "fieldIssue"} key={`${issue.rule}-${issue.message}`}>
-          {issue.message}
-        </span>
-      ))}
-    </label>
+    </section>
+  );
+}
+
+function PacketPreview({ packet }: { packet: SubmissionPacket | null }) {
+  const claim = packet?.bundle.entry.find((entry) => entry.resource.resourceType === "Claim")?.resource;
+
+  return (
+    <section className="panel summaryPanel">
+      <div className="panelHeader">
+        <p className="eyebrow">Packet preview</p>
+        <h2>{packet ? packet.id : "No packet built"}</h2>
+      </div>
+      {packet ? (
+        <div className="miniFacts">
+          <Metric label="Schema" value={packet.packetSchemaVersion} />
+          <Metric label="Transport" value={packet.transport} />
+          <Metric label="Claim use" value={String(claim?.use ?? "Unknown")} />
+          <Metric label="Attachments" value={String(packet.attachmentManifest.attachments.length)} />
+        </div>
+      ) : (
+        <p className="muted">Packet preview appears after agent packet assembly.</p>
+      )}
+    </section>
+  );
+}
+
+function BusinessTimeline({
+  events,
+  auditEvents
+}: {
+  events: StatusEvent[];
+  auditEvents: AuditEvent[];
+}) {
+  return (
+    <section className="panel businessPanel">
+      <div className="panelHeader">
+        <p className="eyebrow">Audit / status timeline</p>
+        <h2>{events.length + auditEvents.length} recorded events</h2>
+      </div>
+      <div className="dualTimeline">
+        <div className="timelineColumn">
+          <h3>Status</h3>
+          {events.length > 0 ? events.map((event) => (
+            <div className="timelineEvent" key={event.eventId}>
+              <strong>{titleCase(event.toStatus)}</strong>
+              <span>{event.fromStatus ? `${titleCase(event.fromStatus)} -> ` : ""}{event.causedBy}</span>
+              <small>{event.actor} - {formatTime(event.at)}</small>
+            </div>
+          )) : <p className="muted">No status events yet.</p>}
+        </div>
+        <div className="timelineColumn">
+          <h3>Audit</h3>
+          {auditEvents.length > 0 ? auditEvents.slice(-8).map((event) => (
+            <div className="timelineEvent" key={event.eventId}>
+              <strong>{event.action}</strong>
+              <span>{event.resourceType}/{event.resourceId}</span>
+              <small>{event.actor} - {formatTime(event.timestamp)}</small>
+            </div>
+          )) : <p className="muted">No audit events yet.</p>}
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -1166,178 +563,88 @@ function Metric({ label, value }: { label: string; value: string }) {
   );
 }
 
-async function postJson<T>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(body)
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    throw payload;
+function describeNextAction(
+  workItem: WorkItem | null,
+  run: AgentCockpitRunResponse | null,
+  moreInfo: MoreInfoRequest | undefined
+): { title: string; detail: string } {
+  if (!workItem) {
+    return {
+      title: "Select or seed a case",
+      detail: "Start from a synthetic MRI or DME work item. Case state stays primary; agent trace appears only after an explicit run."
+    };
   }
-
-  return payload as T;
+  if (run?.submitApproval.status === "pending") {
+    return {
+      title: "Human approval required",
+      detail: `${run.submitApproval.toolName} is paused at ApprovalGate. Packet preview is ready; mock PAS submit has not executed.`
+    };
+  }
+  if (moreInfo && !moreInfo.resolvedAt) {
+    return {
+      title: "Respond to payer more-info request",
+      detail: moreInfo.message
+    };
+  }
+  if (workItem.status === "requirements_found") {
+    return {
+      title: "Run deterministic agent team",
+      detail: "Agent will inspect requirements, draft questionnaire response, assemble evidence context, build packet, and pause before submit."
+    };
+  }
+  if (workItem.status === "submitted") {
+    return {
+      title: "Await payer update",
+      detail: "Use mock payer controls to mark pended, request more information, approve, or deny."
+    };
+  }
+  return {
+    title: titleCase(workItem.status),
+    detail: workItem.requirementResult.explanatoryNotes.at(-1) ?? workItem.requirementResult.nextAction
+  };
 }
 
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`);
-  const payload = await response.json();
-
   if (!response.ok) {
-    throw payload;
+    throw new Error(`${path} failed with ${response.status}`);
   }
-
-  return payload as T;
+  return await response.json() as T;
 }
 
-function updateResponseAnswer(
-  response: FhirQuestionnaireResponse,
-  item: FhirQuestionnaireItem,
-  rawValue: string
-): FhirQuestionnaireResponse {
-  return updateResponseAnswerObject(response, item.linkId, valueToAnswer(item, rawValue));
-}
-
-function updateResponseAnswerObject(
-  response: FhirQuestionnaireResponse,
-  linkId: string,
-  answer: FhirQuestionnaireResponseAnswer | undefined
-): FhirQuestionnaireResponse {
-  return {
-    ...response,
-    item: response.item.map((item) => updateResponseItem(item, linkId, answer))
-  };
-}
-
-function updateResponseItem(
-  item: FhirQuestionnaireResponseItem,
-  linkId: string,
-  answer: FhirQuestionnaireResponseAnswer | undefined
-): FhirQuestionnaireResponseItem {
-  if (item.linkId === linkId) {
-    const { answer: _answer, ...rest } = item;
-    return answer ? { ...rest, answer: [answer] } : rest;
-  }
-  return {
-    ...item,
-    ...(item.item ? { item: item.item.map((child) => updateResponseItem(child, linkId, answer)) } : {})
-  };
-}
-
-function valueToAnswer(
-  item: FhirQuestionnaireItem,
-  value: unknown
-): FhirQuestionnaireResponseAnswer | undefined {
-  if (value === "" || value === undefined || value === null) {
-    return undefined;
-  }
-  if (item.type === "boolean") {
-    return { valueBoolean: value === true || value === "true" };
-  }
-  if (item.type === "choice") {
-    const option = item.answerOption?.find((candidate) => candidate.valueCoding?.code === value || candidate.valueString === value);
-    if (option?.valueCoding) {
-      return { valueCoding: option.valueCoding };
-    }
-    if (option?.valueString) {
-      return { valueString: option.valueString };
-    }
-    return undefined;
-  }
-  if (typeof value === "object" && value && "code" in value) {
-    return { valueCoding: value as FhirQuestionnaireResponseAnswer["valueCoding"] };
-  }
-  return { valueString: String(value) };
-}
-
-function findResponseItem(
-  items: FhirQuestionnaireResponseItem[],
-  linkId: string
-): FhirQuestionnaireResponseItem | undefined {
-  for (const item of items) {
-    if (item.linkId === linkId) {
-      return item;
-    }
-    const child = item.item ? findResponseItem(item.item, linkId) : undefined;
-    if (child) {
-      return child;
-    }
-  }
-  return undefined;
-}
-
-function controlValue(answer: FhirQuestionnaireResponseAnswer | undefined): unknown {
-  if (!answer) {
-    return "";
-  }
-  return answer.valueBoolean ?? answer.valueCoding ?? answer.valueString ?? "";
-}
-
-function isFieldEdited(
-  pkg: QuestionnairePackage,
-  response: FhirQuestionnaireResponse,
-  item: FhirQuestionnaireItem
-): boolean {
-  const hasSavedOverride = pkg.session.prefillOverrides.some((override) => override.linkId === item.linkId);
-  if (hasSavedOverride) {
-    return true;
-  }
-  const original = controlValue(findResponseItem(pkg.questionnaireResponse.item, item.linkId)?.answer?.[0]);
-  const current = controlValue(findResponseItem(response.item, item.linkId)?.answer?.[0]);
-  return JSON.stringify(original) !== JSON.stringify(current);
-}
-
-function isEnabled(item: FhirQuestionnaireItem, response: FhirQuestionnaireResponse): boolean {
-  if (!item.enableWhen?.length) {
-    return true;
-  }
-  return item.enableWhen.every((condition) => {
-    const answer = findResponseItem(response.item, condition.question)?.answer?.[0];
-    const value = controlValue(answer);
-    if (condition.operator === "=" && "answerBoolean" in condition) {
-      return value === condition.answerBoolean;
-    }
-    return true;
+async function postJson<T = unknown>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
   });
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`${path} failed with ${response.status}: ${text}`);
+  }
+  return await response.json() as T;
+}
+
+function titleCase(value: string): string {
+  return value.replaceAll("_", " ").replaceAll("-", " ");
+}
+
+function formatMoreInfo(value: MoreInfoRequest | undefined): string {
+  if (!value) {
+    return "None";
+  }
+  return value.resolvedAt ? "Resolved" : "Open";
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }).format(new Date(value));
 }
 
 function formatCaught(caught: unknown, fallback: string): string {
-  if (caught && typeof caught === "object" && "resourceType" in caught) {
-    const outcome = caught as { issue?: Array<{ diagnostics?: string }> };
-    return outcome.issue?.[0]?.diagnostics ?? fallback;
-  }
   return caught instanceof Error ? caught.message : fallback;
-}
-
-function formatAuditTime(timestamp: string): string {
-  return new Date(timestamp).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-}
-
-function formatRate(value: number | null | undefined): string {
-  return `${Math.round((value ?? 0) * 100)}%`;
-}
-
-function formatDuration(value: number | null | undefined): string {
-  if (value === null || value === undefined) {
-    return "n/a";
-  }
-  if (value < 60_000) {
-    return `${Math.round(value / 1000)}s`;
-  }
-  if (value < 3_600_000) {
-    return `${Math.round(value / 60_000)}m`;
-  }
-  return `${Math.round(value / 3_600_000)}h`;
-}
-
-function clone<T>(value: T): T {
-  return JSON.parse(JSON.stringify(value)) as T;
 }

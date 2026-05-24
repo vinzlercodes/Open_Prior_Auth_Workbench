@@ -44,7 +44,7 @@ npm run demo:seed
 - M2: local DTR-inspired questionnaire workspace with deterministic prefill and validation.
 - M3: deterministic PAS-style local packet build, mock submission, status timeline, and audit trail.
 - M4: reusable prior-auth proof with MRI/Acme and DME/Blue Ridge scenarios sharing the same core, ToolNet, runtime, queue, packet, approval, and trace path.
-- M5: OSS polish with contributor docs, CI, fixture index, screenshots, and docs-only automation recipes.
+- M5: Agent Cockpit where prior-auth case state is primary and deterministic agent trace is visible as a trust/debug layer.
 - M6: SQLite-backed local persistence, transaction boundaries, DB scripts, and local standards-shaped adapter boundaries.
 - M7: synthetic supporting information, DocumentReference/Binary-like packet entries, fixture DTR dependencies, standards-shaped non-conformant aliases, and SQLite evidence metadata.
 
