@@ -11,6 +11,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@open-prior-auth/doctor-runtime": "0.1.0",
     "@open-prior-auth/prior-auth-core": "0.1.0",
     "@open-prior-auth/shared-types": "0.1.0"
   }

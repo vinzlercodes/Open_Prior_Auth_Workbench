@@ -652,6 +652,77 @@ export interface WorkItemOperationsHistory {
   operationEvents: OperationEvent[];
 }
 
+export interface AgentCockpitTraceEvent {
+  sequence: number;
+  eventId: string;
+  runId: string;
+  taskId?: string;
+  toolCallId?: string;
+  approvalRequestId?: string;
+  type: string;
+  actor: string;
+  at: string;
+  message: string;
+  data: unknown;
+}
+
+export interface AgentCockpitStep {
+  agent: "orchestrator" | "requirement" | "documentation" | "evidence" | "packet" | "compliance";
+  toolName?: string;
+  status: "completed" | "waiting_for_human";
+  summary: string;
+}
+
+export interface AgentCockpitApprovalSummary {
+  id: string;
+  toolName: string;
+  riskLevel: string;
+  status: "pending" | "approved" | "rejected";
+  reason: string;
+  requestedBy: string;
+  requestedAt: string;
+  decidedBy?: string;
+  decidedAt?: string;
+  decisionReason?: string;
+}
+
+export interface AgentCockpitRequirementEvidenceRow {
+  requirementCode: string;
+  requirementLabel: string;
+  requirementDetail: string;
+  resourceType: string;
+  status: "satisfied" | "missing" | "available" | "attached" | "accepted" | "included-in-packet";
+  sourceLabel: string;
+  evidenceAttachmentIds: string[];
+  fixtureIds: string[];
+}
+
+export interface AgentCockpitRunResponse {
+  run: {
+    id: string;
+    status: "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
+    objective: string;
+    createdAt: string;
+    updatedAt: string;
+    completedAt?: string;
+    metadata: Record<string, unknown>;
+  };
+  workItem: WorkItem;
+  caseStatus: WorkItem["status"];
+  requirementEvaluation: RequirementEvaluationResult;
+  questionnairePackage: QuestionnairePackage;
+  evidence: EvidenceListResponse;
+  evidenceBoard: AgentCockpitRequirementEvidenceRow[];
+  packet: SubmissionPacket;
+  receipt: SubmissionReceipt | null;
+  questionnaireApproval: AgentCockpitApprovalSummary;
+  submitApproval: AgentCockpitApprovalSummary;
+  steps: AgentCockpitStep[];
+  trace: AgentCockpitTraceEvent[];
+  statusTimeline: StatusEvent[];
+  auditTrace: AuditEvent[];
+}
+
 export interface PacketBuildRequest {
   workItemId: string;
   actorUserId?: string;

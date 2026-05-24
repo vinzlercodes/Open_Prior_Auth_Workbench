@@ -1,7 +1,16 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
+import {
+  runDeterministicPriorAuthAgentTeam,
+  SqliteRuntimeStore,
+  type ApprovalRequest
+} from "@open-prior-auth/doctor-runtime";
 import type {
+  AgentCockpitApprovalSummary,
+  AgentCockpitRequirementEvidenceRow,
+  AgentCockpitRunResponse,
   AttachEvidenceRequest,
+  EvidenceListResponse,
   MoreInfoRequestCreateRequest,
   PacketBuildRequest,
   PacketSubmitRequest,
@@ -16,6 +25,7 @@ import {
   buildSubmissionPacket,
   evaluateRequirements,
   EvidenceRepository,
+  findRulePackForRequest,
   getCaseAuditTrace,
   getCaseStatusTimeline,
   getPriorAuthorizationCase,
@@ -31,11 +41,12 @@ import {
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
 import { getGoldenScenario, listGoldenScenarios } from "./scenarios.js";
-import { SqliteStore } from "./storage/sqliteStore.js";
+import { defaultDatabasePath, SqliteStore } from "./storage/sqliteStore.js";
 
 export interface ApiDependencies {
   repository?: FixtureFhirRepository;
   store?: PriorAuthStore;
+  runtimeStorePath?: string;
 }
 
 export function createServer(dependencies: ApiDependencies = {}) {
@@ -45,7 +56,7 @@ export function createServer(dependencies: ApiDependencies = {}) {
 
   return createHttpServer(async (request, response) => {
     try {
-      await routeRequest(request, response, repository, store, adapters);
+      await routeRequest(request, response, repository, store, adapters, dependencies.runtimeStorePath);
     } catch (error) {
       if (error instanceof OperationOutcomeError) {
         sendJson(response, error.statusCode, error.outcome);
@@ -63,7 +74,8 @@ async function routeRequest(
   response: ServerResponse,
   repository: FixtureFhirRepository,
   store: PriorAuthStore,
-  adapters: LocalStandardsAdapters
+  adapters: LocalStandardsAdapters,
+  runtimeStorePath: string | undefined
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://localhost");
   const operationsService = new OperationsService(store);
@@ -132,6 +144,12 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/work-items") {
     const body = await readJson<WorkItemCreateRequest>(request);
     sendJson(response, 201, store.createWorkItem(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/agent-runs/prior-auth-deterministic") {
+    const body = await readJson<{ workItemId: string; actorUserId?: string }>(request);
+    sendJson(response, 200, await runPriorAuthCockpitAgent(body, repository, store, runtimeStorePath));
     return;
   }
 
@@ -308,6 +326,147 @@ async function routeRequest(
   }
 
   sendJson(response, 404, { error: "Route not found" });
+}
+
+async function runPriorAuthCockpitAgent(
+  input: { workItemId: string; actorUserId?: string },
+  repository: FixtureFhirRepository,
+  store: PriorAuthStore,
+  runtimeStorePath: string | undefined
+): Promise<AgentCockpitRunResponse> {
+  if (!input.workItemId) {
+    throw new OperationOutcomeError(400, "required", "workItemId is required.");
+  }
+
+  const runtimeStore = new SqliteRuntimeStore(runtimeStorePath ?? defaultDatabasePath());
+  try {
+    const result = await runDeterministicPriorAuthAgentTeam({
+      workItemId: input.workItemId,
+      actorUserId: input.actorUserId ?? "m5-cockpit-operator",
+      questionnaireApprovalActorUserId: "m5-scripted-approver"
+    }, {
+      runtimeStore,
+      toolDependencies: {
+        repository,
+        store
+      }
+    });
+    const caseRoot = getPriorAuthorizationCase(result.workItemId, store);
+    const questionnairePackage = getQuestionnairePackage({ workItemId: result.workItemId }, repository, store);
+    const evidence = listEvidence(result.workItemId, store);
+
+    return {
+      run: result.run,
+      workItem: caseRoot.workItem,
+      caseStatus: caseRoot.lifecycleStatus,
+      requirementEvaluation: result.requirementEvaluation,
+      questionnairePackage,
+      evidence,
+      evidenceBoard: buildEvidenceBoard(caseRoot.workItem, evidence),
+      packet: result.packet,
+      receipt: caseRoot.submissionReceipts.at(-1) ?? null,
+      questionnaireApproval: summarizeApproval(result.questionnaireApprovalRequest),
+      submitApproval: summarizeApproval(result.submitApprovalRequest),
+      steps: result.steps,
+      trace: result.trace,
+      statusTimeline: caseRoot.statusTimeline,
+      auditTrace: caseRoot.auditTrace
+    };
+  } finally {
+    runtimeStore.close();
+  }
+}
+
+function summarizeApproval(approval: ApprovalRequest): AgentCockpitApprovalSummary {
+  return {
+    id: approval.id,
+    toolName: approval.toolName,
+    riskLevel: approval.riskLevel,
+    status: approval.status,
+    reason: approval.reason,
+    requestedBy: approval.requestedBy,
+    requestedAt: approval.requestedAt,
+    decidedBy: approval.decision?.decidedBy,
+    decidedAt: approval.decision?.decidedAt,
+    decisionReason: approval.decision?.reason
+  };
+}
+
+function buildEvidenceBoard(
+  workItem: Awaited<ReturnType<typeof getPriorAuthorizationCase>>["workItem"],
+  evidence: EvidenceListResponse
+): AgentCockpitRequirementEvidenceRow[] {
+  const rulePack = findRulePackForRequest({
+    payerId: workItem.payerId,
+    serviceLine: workItem.serviceLine
+  });
+  const requirements = rulePack?.rules[0]?.requiredClinicalContext ?? workItem.requirementResult.missingData;
+
+  return requirements.map((requirement) => {
+    const matchingAttachments = evidence.attachments.filter((attachment) =>
+      evidenceMatchesRequirement(attachment.title, attachment.filename, requirement.code, requirement.resourceType)
+    );
+    const matchingFixtures = evidence.availableFixtures.filter((fixture) =>
+      evidenceMatchesRequirement(fixture.title, fixture.filename, requirement.code, requirement.resourceType)
+    );
+    const packetAttachments = matchingAttachments.filter((attachment) => attachment.status === "included-in-packet");
+    const acceptedAttachments = matchingAttachments.filter((attachment) => attachment.status === "accepted");
+    const attachedAttachments = matchingAttachments.filter((attachment) => attachment.status === "attached");
+    const missing = workItem.requirementResult.missingData.some((item) => item.code === requirement.code);
+
+    return {
+      requirementCode: requirement.code,
+      requirementLabel: requirement.label,
+      requirementDetail: requirement.detail,
+      resourceType: requirement.resourceType,
+      status: packetAttachments.length > 0
+        ? "included-in-packet"
+        : acceptedAttachments.length > 0
+          ? "accepted"
+          : attachedAttachments.length > 0
+            ? "attached"
+            : missing
+              ? "missing"
+              : matchingFixtures.length > 0
+                ? "available"
+                : "satisfied",
+      sourceLabel: sourceLabelForRequirement(requirement.resourceType, workItem.requirementResult.requestSummary),
+      evidenceAttachmentIds: matchingAttachments.map((attachment) => attachment.id),
+      fixtureIds: matchingFixtures.map((fixture) => fixture.fixtureId)
+    };
+  });
+}
+
+function evidenceMatchesRequirement(
+  title: string,
+  filename: string,
+  requirementCode: string,
+  resourceType: string
+): boolean {
+  if (resourceType === "Condition") {
+    return false;
+  }
+  const haystack = `${title} ${filename}`.toLowerCase();
+  if (requirementCode.includes("conservative")) {
+    return haystack.includes("conservative") || haystack.includes("mri");
+  }
+  if (requirementCode.includes("functional") || requirementCode.includes("mobility")) {
+    return haystack.includes("mobility") || haystack.includes("wheelchair") || haystack.includes("dme");
+  }
+  return false;
+}
+
+function sourceLabelForRequirement(
+  resourceType: string,
+  summary: { diagnosisSummary?: string; evidenceSummary?: string }
+): string {
+  if (resourceType === "Condition") {
+    return summary.diagnosisSummary ?? "No diagnosis context loaded";
+  }
+  if (resourceType === "Observation") {
+    return summary.evidenceSummary ?? "No observation context loaded";
+  }
+  return "No source context loaded";
 }
 
 async function readJson<T>(request: IncomingMessage): Promise<T> {
