@@ -12,6 +12,7 @@ import {
 import {
   createDoctorRuntime,
   executeRuntimeTool,
+  runDeterministicPriorAuthAgentTeam,
   SqliteRuntimeStore
 } from "../packages/doctor-runtime/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
@@ -143,6 +144,7 @@ function preparePacket(fixture) {
 test("M2 package exports runtime surface and keeps source boundary clean", () => {
   assert.equal(typeof createDoctorRuntime, "function");
   assert.equal(typeof executeRuntimeTool, "function");
+  assert.equal(typeof runDeterministicPriorAuthAgentTeam, "function");
   assert.equal(typeof SqliteRuntimeStore, "function");
 
   const declaration = readFileSync(
@@ -156,7 +158,14 @@ test("M2 package exports runtime surface and keeps source boundary clean", () =>
     "ToolCallRecord",
     "ApprovalRequest",
     "ApprovalDecision",
-    "TraceEvent"
+    "TraceEvent",
+    "PriorAuthOrchestratorAgent",
+    "RequirementDiscoveryAgent",
+    "DocumentationAgent",
+    "EvidenceAgent",
+    "PacketAssemblyAgent",
+    "ComplianceBoundaryAgent",
+    "runDeterministicPriorAuthAgentTeam"
   ]) {
     assert.ok(declaration.includes(exportedType), `Expected ${exportedType} export`);
   }
@@ -348,5 +357,64 @@ test("guarded submit approve creates receipt and moves work item to submitted", 
   assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 1);
   assert.equal(fixture.priorAuthStore.getWorkItem(fixture.workItem.id).status, "submitted");
   assert.equal(approved.output.packetId, packet.id);
+  fixture.runtimeStore.close();
+});
+
+test("M3 deterministic prior-auth agent team produces golden ordered trace and waits on submit approval", async () => {
+  const fixture = createFixture();
+
+  const result = await runDeterministicPriorAuthAgentTeam({
+    workItemId: fixture.workItem.id,
+    actorUserId: "m3-test-agent",
+    questionnaireApprovalActorUserId: "m3-test-approver"
+  }, fixture.runtimeDependencies);
+
+  assert.equal(result.run.status, "waiting_for_human");
+  assert.equal(result.workItemId, fixture.workItem.id);
+  assert.equal(result.packet.workItemId, fixture.workItem.id);
+  assert.equal(result.submitApprovalRequest.toolName, "doctor.pas.submit_mock");
+  assert.equal(result.submitApprovalRequest.status, "pending");
+  assert.equal(result.questionnaireApprovalRequest.toolName, "doctor.dtr.save_response");
+  assert.equal(result.questionnaireApprovalRequest.status, "approved");
+  assert.equal(
+    fixture.runtimeStore.getApprovalRequest(result.questionnaireApprovalRequest.id).status,
+    "approved"
+  );
+  assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 0);
+
+  const agentStartedOrder = result.trace
+    .filter((event) => event.type === "agent.started")
+    .map((event) => event.data.agentRole);
+  assert.deepEqual(agentStartedOrder, [
+    "orchestrator",
+    "requirement",
+    "documentation",
+    "evidence",
+    "packet",
+    "compliance"
+  ]);
+
+  const toolStartedOrder = result.trace
+    .filter((event) => event.type === "tool_call.started")
+    .map((event) => event.data.toolName);
+  assert.deepEqual(toolStartedOrder, [
+    "doctor.queue.list_work_items",
+    "doctor.case.get",
+    "doctor.requirements.evaluate",
+    "doctor.dtr.get_questionnaire_package",
+    "doctor.dtr.save_response",
+    "doctor.evidence.list",
+    "doctor.pas.build_packet",
+    "doctor.pas.submit_mock"
+  ]);
+
+  assert.deepEqual(result.steps.map((step) => step.agent), [
+    "requirement",
+    "documentation",
+    "evidence",
+    "packet",
+    "compliance"
+  ]);
+  assert.equal(result.steps.at(-1).status, "waiting_for_human");
   fixture.runtimeStore.close();
 });
