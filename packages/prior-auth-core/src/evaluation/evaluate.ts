@@ -7,40 +7,50 @@ import type {
 } from "@open-prior-auth/shared-types";
 import type { ClinicalContextRepository, FhirResource, PatientContext } from "../ports.js";
 import { evaluationHash } from "./hash.js";
-import { loadRulePack, type PayerRulePack } from "../rules/rulePack.js";
+import { findRulePackForRequest, loadRulePacks, type PayerRulePack } from "../rules/rulePack.js";
 
 export function evaluateRequirement(
   request: RequirementEvaluationRequest,
   repository: ClinicalContextRepository,
-  rulePack: PayerRulePack = loadRulePack()
+  rulePack: PayerRulePack | PayerRulePack[] = loadRulePacks()
 ): RequirementEvaluationResult {
+  const rulePacks = Array.isArray(rulePack) ? rulePack : [rulePack];
+  const matchedRulePack = findRulePackForRequest(request, rulePacks);
+  const summaryRulePack = matchedRulePack ?? rulePacks[0] ?? {
+    payerName: request.payerId,
+    payerId: request.payerId,
+    serviceLine: request.serviceLine,
+    version: null,
+    rulePackId: "unsupported",
+    rules: []
+  };
   const context = repository.getPatientContext(
     request.patientId,
     request.coverageId,
     request.requestResourceType,
     request.requestResourceId
   );
-  const requestSummary = buildRequestSummary(context, rulePack);
+  const requestSummary = buildRequestSummary(context, summaryRulePack);
 
-  if (request.serviceLine !== rulePack.serviceLine || request.payerId !== rulePack.payerId) {
+  if (!matchedRulePack) {
     return withEvaluationId({
       evaluationStatus: "unsupported_service_line",
       requiresPriorAuth: false,
       requiresDocs: false,
       matchedRuleId: null,
-      rulePackVersion: rulePack.version,
+      rulePackVersion: null,
       nextAction: "select_supported_service_line",
       determinism: "deterministic",
       requestSummary,
       questionnaireCanonicals: [],
       missingData: [],
       explanatoryNotes: [
-        `No M1 rule pack supports service line "${request.serviceLine}" for payer "${request.payerId}".`
+        `No local rule pack supports service line "${request.serviceLine}" for payer "${request.payerId}".`
       ]
     });
   }
 
-  const rule = rulePack.rules[0];
+  const rule = matchedRulePack.rules[0];
   const missingData = findMissingData(context, rule.requiredClinicalContext);
   const hasRequiredRequestContext = Boolean(context.patient && context.coverage && context.request);
   if (!hasRequiredRequestContext) {
@@ -76,7 +86,7 @@ export function evaluateRequirement(
     requiresPriorAuth: rule.requiresPriorAuth,
     requiresDocs: rule.requiresDocs,
     matchedRuleId: rule.id,
-    rulePackVersion: rulePack.version,
+    rulePackVersion: matchedRulePack.version,
     nextAction,
     determinism: "deterministic",
     requestSummary,
@@ -111,7 +121,7 @@ function findMissingData(
   });
 }
 
-function buildRequestSummary(context: PatientContext, rulePack: PayerRulePack): RequestSummary {
+function buildRequestSummary(context: PatientContext, rulePack: Pick<PayerRulePack, "payerName">): RequestSummary {
   const patientName = formatHumanName(context.patient) ?? "Unknown patient";
   const serviceDescription = formatCodeText(context.request) ?? "Unknown service request";
   const diagnosisSummary = context.conditions.map(formatCodeText).filter(Boolean).join("; ") || undefined;
@@ -136,7 +146,9 @@ function formatHumanName(resource: FhirResource | null): string | null {
 }
 
 function formatCodeText(resource: FhirResource | null): string | null {
-  const code = resource?.code as { text?: string; coding?: Array<{ display?: string; code?: string }> } | undefined;
+  const code = (resource?.code ?? resource?.codeCodeableConcept) as
+    | { text?: string; coding?: Array<{ display?: string; code?: string }> }
+    | undefined;
   return code?.text ?? code?.coding?.[0]?.display ?? code?.coding?.[0]?.code ?? null;
 }
 

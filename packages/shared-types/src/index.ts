@@ -1,6 +1,6 @@
 export type RequestResourceType = "ServiceRequest" | "MedicationRequest" | "DeviceRequest";
 
-export type ServiceLine = "mri_lumbar_spine";
+export type ServiceLine = "mri_lumbar_spine" | "dme_power_wheelchair";
 
 export type EvaluationStatus =
   | "requirements_found"
@@ -217,7 +217,7 @@ export interface LocalOperationOutcome {
 
 export interface PrefillSummary {
   linkId: string;
-  sourceResourceType: "Patient" | "Coverage" | "ServiceRequest" | "Condition" | "Observation";
+  sourceResourceType: "Patient" | "Coverage" | "ServiceRequest" | "MedicationRequest" | "DeviceRequest" | "Condition" | "Observation";
   sourceResourceId: string;
   sourceLabel: string;
   valueType: string;

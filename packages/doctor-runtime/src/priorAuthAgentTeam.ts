@@ -2,6 +2,7 @@ import type {
   EvidenceListResponse,
   FhirQuestionnaireResponse,
   FhirQuestionnaireResponseAnswer,
+  FhirQuestionnaireItem,
   QuestionnairePackage,
   RequirementEvaluationResult,
   SubmissionPacket,
@@ -198,7 +199,7 @@ export class DocumentationAgent {
       "doctor.dtr.get_questionnaire_package",
       { workItemId }
     );
-    const questionnaireResponse = completeMriQuestionnaireResponse(questionnairePackage.questionnaireResponse);
+    const questionnaireResponse = completeDeterministicQuestionnaireResponse(questionnairePackage);
     const pause = await executeRuntimeTool({
       runId: context.runId,
       toolName: "doctor.dtr.save_response",
@@ -345,8 +346,8 @@ function selectWorkItem(queue: WorkItemQueueRow[], requestedWorkItemId?: string)
   return selected;
 }
 
-function completeMriQuestionnaireResponse(response: FhirQuestionnaireResponse): FhirQuestionnaireResponse {
-  const next = clone(response);
+function completeDeterministicQuestionnaireResponse(pkg: QuestionnairePackage): FhirQuestionnaireResponse {
+  const next = clone(pkg.questionnaireResponse);
   setAnswer(next, "clinical-urgency", {
     valueCoding: {
       system: "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
@@ -354,20 +355,67 @@ function completeMriQuestionnaireResponse(response: FhirQuestionnaireResponse): 
       display: "Routine"
     }
   });
-  setAnswer(next, "prior-spine-surgery", { valueBoolean: false });
+  setAnswer(next, "prior-spine-surgery", { valueBoolean: false }, false);
+  setAnswer(next, "mobility-device-trial", { valueBoolean: true }, false);
+  setAnswer(next, "home-assessment-complete", { valueBoolean: true }, false);
+
+  for (const item of flattenQuestionnaireItems(pkg.questionnaire.item)) {
+    if (item.required && !findResponseItem(next.item, item.linkId)?.answer?.[0]) {
+      setAnswer(next, item.linkId, defaultAnswerFor(item), false);
+    }
+  }
   return next;
 }
 
 function setAnswer(
   response: FhirQuestionnaireResponse,
   linkId: string,
-  answer: FhirQuestionnaireResponseAnswer
+  answer: FhirQuestionnaireResponseAnswer,
+  required = true
 ): void {
-  const item = response.item.find((candidate) => candidate.linkId === linkId);
-  if (!item) {
+  const item = findResponseItem(response.item, linkId);
+  if (!item && required) {
     throw new Error(`QuestionnaireResponse item ${linkId} not found.`);
   }
-  item.answer = [answer];
+  if (item) {
+    item.answer = [answer];
+  }
+}
+
+function defaultAnswerFor(item: FhirQuestionnaireItem): FhirQuestionnaireResponseAnswer {
+  if (item.type === "boolean") {
+    return { valueBoolean: true };
+  }
+  if (item.type === "choice" && item.answerOption?.[0]?.valueCoding) {
+    return { valueCoding: item.answerOption[0].valueCoding };
+  }
+  if (item.type === "integer") {
+    return { valueInteger: 1 };
+  }
+  if (item.type === "decimal") {
+    return { valueDecimal: 1 };
+  }
+  return { valueString: "Synthetic fixture answer." };
+}
+
+function flattenQuestionnaireItems(items: FhirQuestionnaireItem[]): FhirQuestionnaireItem[] {
+  return items.flatMap((item) => [item, ...(item.item ? flattenQuestionnaireItems(item.item) : [])]);
+}
+
+function findResponseItem(
+  items: FhirQuestionnaireResponse["item"],
+  linkId: string
+): FhirQuestionnaireResponse["item"][number] | undefined {
+  for (const item of items) {
+    if (item.linkId === linkId) {
+      return item;
+    }
+    const child = item.item ? findResponseItem(item.item, linkId) : undefined;
+    if (child) {
+      return child;
+    }
+  }
+  return undefined;
 }
 
 function recordRunStarted(

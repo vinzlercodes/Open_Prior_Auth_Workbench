@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, join } from "node:path";
 import type {
   AttachEvidenceRequest,
@@ -15,7 +15,7 @@ import { evaluationHash } from "../evaluation/hash.js";
 import { OperationOutcomeError } from "../errors.js";
 import { type PriorAuthStore } from "../storage/priorAuthStore.js";
 
-const FIXTURE_PATH = "data/evidence/mri-lumbar-spine.evidence-fixtures.json";
+const FIXTURE_DIRECTORY = "data/evidence";
 const MAX_UPLOAD_BYTES = 512 * 1024;
 const ALLOWED_MIME_TYPES = new Set([
   "application/pdf",
@@ -31,6 +31,7 @@ interface EvidenceFixtureFile {
 }
 
 interface EvidenceFixture {
+  serviceLine?: string;
   fixtureId: string;
   title: string;
   filename: string;
@@ -49,12 +50,12 @@ export class EvidenceRepository {
   ) {}
 
   listEvidenceForWorkItem(workItemId: string): EvidenceListResponse {
-    this.requireWorkItem(workItemId);
+    const workItem = this.requireWorkItem(workItemId);
     return {
       conformance: false,
       mode: "local-non-conformant",
       workItemId,
-      availableFixtures: loadFixtures().map(toFixtureSummary),
+      availableFixtures: loadFixturesForWorkItem(workItem).map(toFixtureSummary),
       attachments: this.store.getEvidenceAttachmentsForWorkItem(workItemId)
     };
   }
@@ -62,7 +63,7 @@ export class EvidenceRepository {
   attachFixture(workItemId: string, input: AttachEvidenceRequest): EvidenceAttachment {
     return this.store.transaction(() => {
       const workItem = this.requireMutableWorkItem(workItemId);
-      const fixture = loadFixtures().find((candidate) => candidate.fixtureId === input.fixtureId);
+      const fixture = loadFixturesForWorkItem(workItem).find((candidate) => candidate.fixtureId === input.fixtureId);
       if (!fixture) {
         throw new OperationOutcomeError(404, "not-found", `Evidence fixture not found: ${input.fixtureId}`);
       }
@@ -237,8 +238,33 @@ export function evidenceDigest(attachments: EvidenceAttachment[]): string {
   })).sort((first, second) => first.id.localeCompare(second.id))), "utf8"));
 }
 
+function loadFixturesForWorkItem(workItem: WorkItem): EvidenceFixture[] {
+  return loadFixtures().filter((fixture) => !fixture.serviceLine || fixture.serviceLine === workItem.serviceLine);
+}
+
 function loadFixtures(): EvidenceFixture[] {
-  return (JSON.parse(readFileSync(resolveFromRepoRoot(FIXTURE_PATH), "utf8")) as EvidenceFixtureFile).fixtures;
+  const directory = resolveFromRepoRoot(FIXTURE_DIRECTORY);
+  return readdirSync(directory)
+    .filter((file) => file.endsWith(".evidence-fixtures.json"))
+    .sort()
+    .flatMap((file) => {
+      const parsed = JSON.parse(readFileSync(`${directory}/${file}`, "utf8")) as EvidenceFixtureFile;
+      const serviceLine = serviceLineForEvidenceFile(file);
+      return parsed.fixtures.map((fixture) => ({
+        ...fixture,
+        serviceLine: fixture.serviceLine ?? serviceLine
+      }));
+    });
+}
+
+function serviceLineForEvidenceFile(file: string): string | undefined {
+  if (file.startsWith("mri-lumbar-spine.")) {
+    return "mri_lumbar_spine";
+  }
+  if (file.startsWith("dme-power-wheelchair.")) {
+    return "dme_power_wheelchair";
+  }
+  return undefined;
 }
 
 function toFixtureSummary(fixture: EvidenceFixture): EvidenceFixtureSummary {

@@ -290,19 +290,23 @@ function loadQuestionnaire(url: string, version: string): FhirQuestionnaire {
 }
 
 function loadDtrDependencies(canonical: string): { libraries: Record<string, unknown>[]; valueSets: Record<string, unknown>[] } {
-  const dependencyFile = resolveFromRepoRoot("data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json");
-  const dependencies = JSON.parse(readFileSync(dependencyFile, "utf8")) as {
-    questionnaire: string;
-    libraries: Record<string, unknown>[];
-    valueSets: Record<string, unknown>[];
-  };
-  if (dependencies.questionnaire !== canonical) {
-    return { libraries: [], valueSets: [] };
+  const directory = resolveFromRepoRoot("data/questionnaires");
+  const files = readdirSync(directory).filter((file) => file.endsWith(".dependencies.json"));
+
+  for (const file of files) {
+    const dependencies = JSON.parse(readFileSync(`${directory}/${file}`, "utf8")) as {
+      questionnaire: string;
+      libraries: Record<string, unknown>[];
+      valueSets: Record<string, unknown>[];
+    };
+    if (dependencies.questionnaire === canonical) {
+      return {
+        libraries: dependencies.libraries,
+        valueSets: dependencies.valueSets
+      };
+    }
   }
-  return {
-    libraries: dependencies.libraries,
-    valueSets: dependencies.valueSets
-  };
+  return { libraries: [], valueSets: [] };
 }
 
 function buildDtrDependencyBundle(
@@ -375,6 +379,15 @@ function evaluateFixtureExpression(
       expressionName,
       language: "text/cql-identifier",
       result: answerValue(responseItemMap(response.item).get("prior-spine-surgery")?.answer?.[0]) === true,
+      source: "fixture-allowlist"
+    };
+  }
+
+  if (expressionName === "dme.hasFunctionalMobilityEvidence") {
+    return {
+      expressionName,
+      language: "text/cql-identifier",
+      result: hasAnswer(responseItemMap(response.item).get("conservative-treatment-evidence")),
       source: "fixture-allowlist"
     };
   }
@@ -500,7 +513,7 @@ function buildPrefillSummary(context: PatientContext): PrefillSummary[] {
     },
     context.request && {
       linkId: "requested-service",
-      sourceResourceType: "ServiceRequest" as const,
+      sourceResourceType: context.request.resourceType as "ServiceRequest" | "MedicationRequest" | "DeviceRequest",
       sourceResourceId: context.request.id ?? "unknown",
       sourceLabel: "Requested service",
       valueType: "valueString",
@@ -847,7 +860,9 @@ function formatHumanName(resource: FhirResource | null): string | null {
 }
 
 function formatCodeText(resource: FhirResource | null): string | null {
-  const code = resource?.code as { text?: string; coding?: Array<{ display?: string; code?: string }> } | undefined;
+  const code = (resource?.code ?? resource?.codeCodeableConcept) as
+    | { text?: string; coding?: Array<{ display?: string; code?: string }> }
+    | undefined;
   return code?.text ?? code?.coding?.[0]?.display ?? code?.coding?.[0]?.code ?? null;
 }
 

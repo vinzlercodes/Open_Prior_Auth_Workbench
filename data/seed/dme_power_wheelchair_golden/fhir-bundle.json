@@ -1,0 +1,187 @@
+{
+  "resourceType": "Bundle",
+  "id": "bundle-dme-power-wheelchair-golden",
+  "type": "collection",
+  "entry": [
+    {
+      "resource": {
+        "resourceType": "Patient",
+        "id": "patient-dme-001",
+        "name": [
+          {
+            "use": "official",
+            "family": "Brooks",
+            "given": ["Marcus"]
+          }
+        ],
+        "gender": "male",
+        "birthDate": "1964-11-03"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Organization",
+        "id": "org-mobility-clinic",
+        "name": "Northstar Mobility Clinic"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Practitioner",
+        "id": "practitioner-rehab-001",
+        "name": [
+          {
+            "family": "Patel",
+            "given": ["Sonia"],
+            "prefix": ["Dr."]
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Coverage",
+        "id": "coverage-blue-ridge-001",
+        "status": "active",
+        "beneficiary": {
+          "reference": "Patient/patient-dme-001"
+        },
+        "payor": [
+          {
+            "reference": "Organization/payer-blue-ridge",
+            "display": "Blue Ridge Health"
+          }
+        ],
+        "class": [
+          {
+            "type": {
+              "text": "plan"
+            },
+            "value": "BRH-MED-PLUS",
+            "name": "Blue Ridge Medicare Plus"
+          }
+        ]
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Encounter",
+        "id": "encounter-mobility-001",
+        "status": "finished",
+        "class": {
+          "system": "http://terminology.hl7.org/CodeSystem/v3-ActCode",
+          "code": "AMB",
+          "display": "ambulatory"
+        },
+        "subject": {
+          "reference": "Patient/patient-dme-001"
+        },
+        "participant": [
+          {
+            "individual": {
+              "reference": "Practitioner/practitioner-rehab-001",
+              "display": "Dr. Sonia Patel"
+            }
+          }
+        ],
+        "serviceProvider": {
+          "reference": "Organization/org-mobility-clinic"
+        }
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Condition",
+        "id": "condition-mobility-impairment-001",
+        "clinicalStatus": {
+          "coding": [
+            {
+              "system": "http://terminology.hl7.org/CodeSystem/condition-clinical",
+              "code": "active"
+            }
+          ]
+        },
+        "code": {
+          "coding": [
+            {
+              "system": "http://hl7.org/fhir/sid/icd-10-cm",
+              "code": "R26.89",
+              "display": "Other abnormalities of gait and mobility"
+            }
+          ],
+          "text": "Severe mobility impairment limiting mobility-related activities of daily living"
+        },
+        "subject": {
+          "reference": "Patient/patient-dme-001"
+        },
+        "encounter": {
+          "reference": "Encounter/encounter-mobility-001"
+        },
+        "recordedDate": "2026-05-05"
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "Observation",
+        "id": "obs-mobility-evaluation-001",
+        "status": "final",
+        "category": [
+          {
+            "coding": [
+              {
+                "system": "http://terminology.hl7.org/CodeSystem/observation-category",
+                "code": "survey",
+                "display": "Survey"
+              }
+            ]
+          }
+        ],
+        "code": {
+          "text": "Home mobility evaluation"
+        },
+        "subject": {
+          "reference": "Patient/patient-dme-001"
+        },
+        "encounter": {
+          "reference": "Encounter/encounter-mobility-001"
+        },
+        "effectiveDateTime": "2026-05-06",
+        "valueString": "Patient cannot complete toileting and meal preparation with cane or walker; power wheelchair is needed for in-home mobility."
+      }
+    },
+    {
+      "resource": {
+        "resourceType": "DeviceRequest",
+        "id": "devicerequest-power-wheelchair-001",
+        "status": "active",
+        "intent": "order",
+        "codeCodeableConcept": {
+          "coding": [
+            {
+              "system": "http://www.cms.gov/Medicare/Coding/HCPCSReleaseCodeSets",
+              "code": "K0823",
+              "display": "Power wheelchair, group 2 standard"
+            }
+          ],
+          "text": "Group 2 standard power wheelchair"
+        },
+        "subject": {
+          "reference": "Patient/patient-dme-001"
+        },
+        "encounter": {
+          "reference": "Encounter/encounter-mobility-001"
+        },
+        "requester": {
+          "reference": "Practitioner/practitioner-rehab-001",
+          "display": "Dr. Sonia Patel"
+        },
+        "authoredOn": "2026-05-07",
+        "reasonReference": [
+          {
+            "reference": "Condition/condition-mobility-impairment-001"
+          }
+        ]
+      }
+    }
+  ]
+}

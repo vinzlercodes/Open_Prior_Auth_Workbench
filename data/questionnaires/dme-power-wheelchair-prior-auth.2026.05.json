@@ -1,0 +1,75 @@
+{
+  "resourceType": "Questionnaire",
+  "id": "dme-power-wheelchair-prior-auth",
+  "url": "http://openpriorauth.local/fhir/Questionnaire/dme-power-wheelchair-prior-auth",
+  "version": "2026.05",
+  "status": "active",
+  "title": "DME Power Wheelchair Prior Authorization",
+  "subjectType": ["Patient"],
+  "item": [
+    {
+      "linkId": "patient-name",
+      "text": "Patient name",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "payer-name",
+      "text": "Payer",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "requested-service",
+      "text": "Requested DME item",
+      "type": "string",
+      "required": true
+    },
+    {
+      "linkId": "diagnosis-summary",
+      "text": "Mobility diagnosis summary",
+      "type": "text",
+      "required": true
+    },
+    {
+      "linkId": "conservative-treatment-evidence",
+      "text": "Functional mobility evidence",
+      "type": "text",
+      "required": true
+    },
+    {
+      "linkId": "clinical-urgency",
+      "text": "Clinical urgency",
+      "type": "choice",
+      "required": true,
+      "answerOption": [
+        {
+          "valueCoding": {
+            "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+            "code": "routine",
+            "display": "Routine"
+          }
+        },
+        {
+          "valueCoding": {
+            "system": "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+            "code": "urgent",
+            "display": "Urgent"
+          }
+        }
+      ]
+    },
+    {
+      "linkId": "mobility-device-trial",
+      "text": "Has the patient failed a cane or walker trial?",
+      "type": "boolean",
+      "required": true
+    },
+    {
+      "linkId": "home-assessment-complete",
+      "text": "Has a home mobility assessment been completed?",
+      "type": "boolean",
+      "required": true
+    }
+  ]
+}

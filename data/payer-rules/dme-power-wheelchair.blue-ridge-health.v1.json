@@ -1,0 +1,32 @@
+{
+  "rulePackId": "blue-ridge-health-dme-power-wheelchair",
+  "version": "2026.05.01",
+  "payerId": "blue-ridge-health",
+  "payerName": "Blue Ridge Health",
+  "serviceLine": "dme_power_wheelchair",
+  "rules": [
+    {
+      "id": "dme-pwc-blue-ridge-001",
+      "description": "DME power wheelchair requests require prior authorization and supporting diagnosis plus functional mobility evidence.",
+      "requiresPriorAuth": true,
+      "requiresDocs": true,
+      "questionnaireCanonicals": [
+        "http://openpriorauth.local/fhir/Questionnaire/dme-power-wheelchair-prior-auth|2026.05"
+      ],
+      "requiredClinicalContext": [
+        {
+          "code": "diagnosis-context",
+          "label": "Diagnosis context",
+          "resourceType": "Condition",
+          "detail": "Attach at least one active or recent diagnosis relevant to the mobility limitation."
+        },
+        {
+          "code": "functional-mobility-evidence",
+          "label": "Functional mobility evidence",
+          "resourceType": "Observation",
+          "detail": "Include evidence of mobility limitation, failed lower-level assistive devices, or home mobility need."
+        }
+      ]
+    }
+  ]
+}

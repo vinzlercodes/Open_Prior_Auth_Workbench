@@ -1,0 +1,35 @@
+{
+  "version": "2026.05",
+  "fixtures": [
+    {
+      "fixtureId": "fixture-dme-mobility-summary-inline",
+      "title": "Power Wheelchair Mobility Summary",
+      "filename": "power_wheelchair_mobility_summary.txt",
+      "contentType": "text/plain",
+      "contentMode": "inline-base64",
+      "sizeBytes": 118,
+      "sha256": "60a7d000f08b8885701d4f7f4a820987216fb014657dd98399bafd98d803e9b3",
+      "base64Data": "UGF0aWVudCByZXF1aXJlcyBwb3dlciB3aGVlbGNoYWlyIGZvciBtb2JpbGl0eS1yZWxhdGVkIGFjdGl2aXRpZXMgb2YgZGFpbHkgbGl2aW5nIGFmdGVyIGZhaWxlZCBjYW5lIGFuZCB3YWxrZXIgdHJpYWxzLg=="
+    },
+    {
+      "fixtureId": "fixture-dme-medical-necessity-binary",
+      "title": "DME Medical Necessity Note",
+      "filename": "dme_medical_necessity_note.txt",
+      "contentType": "text/plain",
+      "contentMode": "local-binary",
+      "sizeBytes": 110,
+      "sha256": "ef8fd42a2e537f760f25e7808f8185c31410a948efd451fd29874deb323f0851",
+      "base64Data": "RE1FIHdoZWVsY2hhaXIgcHJpb3IgYXV0aG9yaXphdGlvbiBub3RlOiBob21lIG1vYmlsaXR5IGV2YWx1YXRpb24gc3VwcG9ydHMgcG93ZXIgd2hlZWxjaGFpciBtZWRpY2FsIG5lY2Vzc2l0eS4="
+    },
+    {
+      "fixtureId": "fixture-dme-synthetic-pdf-binary",
+      "title": "Synthetic DME Prior Authorization PDF",
+      "filename": "synthetic_dme_prior_auth.pdf",
+      "contentType": "application/pdf",
+      "contentMode": "local-binary",
+      "sizeBytes": 107,
+      "sha256": "2753ba2c8b504ec23fe6322e3d05fe76156d6ed4f6ad51fb6c666bdc67aca455",
+      "base64Data": "JVBERi0xLjQKJSBTeW50aGV0aWMgRE1FIHBvd2VyIHdoZWVsY2hhaXIgcHJpb3IgYXV0aCBQREYgZml4dHVyZQoxIDAgb2JqIDw8IC9UeXBlIC9DYXRhbG9nID4+IGVuZG9iagolJUVPRgo="
+    }
+  ]
+}

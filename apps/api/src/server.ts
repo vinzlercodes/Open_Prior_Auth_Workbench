@@ -30,6 +30,7 @@ import {
 } from "@open-prior-auth/prior-auth-core";
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
+import { getGoldenScenario, listGoldenScenarios } from "./scenarios.js";
 import { SqliteStore } from "./storage/sqliteStore.js";
 
 export interface ApiDependencies {
@@ -107,7 +108,12 @@ async function routeRequest(
 
   const contextMatch = url.pathname.match(/^\/context\/patient\/([^/]+)$/);
   if (request.method === "GET" && contextMatch) {
-    sendJson(response, 200, adapters.launch.getPatientContext(decodeURIComponent(contextMatch[1])));
+    sendJson(response, 200, adapters.launch.getPatientContext(
+      decodeURIComponent(contextMatch[1]),
+      url.searchParams.get("coverageId") ?? undefined,
+      url.searchParams.get("requestResourceType") ?? undefined,
+      url.searchParams.get("requestResourceId") ?? undefined
+    ));
     return;
   }
 
@@ -129,17 +135,19 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/demo/scenarios") {
+    sendJson(response, 200, listGoldenScenarios().map((scenario) => ({
+      scenarioId: scenario.scenarioId,
+      publicName: scenario.publicName ?? scenario.description,
+      request: scenario.request
+    })));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/demo/seed-work-items") {
-    const body = await readJson<{ count?: number; ownerUserId?: string }>(request);
+    const body = await readJson<{ count?: number; ownerUserId?: string; scenarioId?: string }>(request);
     const count = Math.max(1, Math.min(body.count ?? 3, 10));
-    const baseRequest: RequirementEvaluationRequest = {
-      patientId: "patient-mri-001",
-      coverageId: "coverage-acme-001",
-      requestResourceType: "ServiceRequest",
-      requestResourceId: "servicerequest-mri-lumbar-001",
-      serviceLine: "mri_lumbar_spine",
-      payerId: "acme-health"
-    };
+    const baseRequest = getGoldenScenario(body.scenarioId).request;
     const baseResult = evaluateRequirements(baseRequest, repository);
     const start = store.listWorkItems().length + 1;
     const created = Array.from({ length: count }, (_, index) => {

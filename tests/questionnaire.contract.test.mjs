@@ -11,13 +11,16 @@ import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
 );
+const dmeScenario = JSON.parse(
+  readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/dme-power-wheelchair.json"), "utf8")
+);
 
-function createFixture() {
-  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+function createFixture(scenario = goldenScenario) {
+  const repository = new FixtureFhirRepository(scenario.bundlePath);
   const store = new MemoryStore();
   const result = store.saveEvaluation(
-    goldenScenario.request,
-    evaluateRequirement(goldenScenario.request, repository)
+    scenario.request,
+    evaluateRequirement(scenario.request, repository)
   );
   const workItem = store.createWorkItem({
     evaluationId: result.evaluationId,
@@ -48,6 +51,19 @@ function completeResponse(response) {
     }
   });
   setAnswer(response, "prior-spine-surgery", { valueBoolean: false });
+  return response;
+}
+
+function completeDmeResponse(response) {
+  setAnswer(response, "clinical-urgency", {
+    valueCoding: {
+      system: "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+      code: "routine",
+      display: "Routine"
+    }
+  });
+  setAnswer(response, "mobility-device-trial", { valueBoolean: true });
+  setAnswer(response, "home-assessment-complete", { valueBoolean: true });
   return response;
 }
 
@@ -91,6 +107,31 @@ test("DTR standards package is Parameters-shaped with Questionnaire first and fi
   assert.ok(bundle.entry.some((entry) => entry.resource.resourceType === "ValueSet"));
   assert.ok(bundle.entry.some((entry) => entry.resource.resourceType === "QuestionnaireResponse"));
   assert.ok(standardsPackage.expressionEvaluations.some((item) => item.expressionName === "mri.hasConservativeTherapyEvidence"));
+});
+
+test("DME questionnaire package loads, prefills, validates, and reaches review-ready", () => {
+  const { service, store, workItem } = createFixture(dmeScenario);
+  const pkg = service.getPackage(workItem.id);
+
+  assert.equal(pkg.questionnaireCanonical, "http://openpriorauth.local/fhir/Questionnaire/dme-power-wheelchair-prior-auth|2026.05");
+  assert.equal(pkg.questionnaire.title, "DME Power Wheelchair Prior Authorization");
+  assert.equal(pkg.prefill.find((item) => item.linkId === "patient-name").sourceResourceId, "patient-dme-001");
+  assert.equal(pkg.prefill.find((item) => item.linkId === "requested-service").sourceResourceType, "DeviceRequest");
+  assert.equal(
+    pkg.questionnaireResponse.item.find((item) => item.linkId === "requested-service").answer[0].valueString,
+    "Group 2 standard power wheelchair"
+  );
+
+  const ready = service.saveResponse({
+    workItemId: workItem.id,
+    questionnaireResponse: completeDmeResponse(clone(pkg.questionnaireResponse)),
+    revision: pkg.session.revision,
+    markReadyForReview: true
+  });
+
+  assert.equal(ready.validation.valid, true);
+  assert.equal(ready.questionnaireResponse.status, "completed");
+  assert.equal(store.getWorkItem(workItem.id).status, "review_ready");
 });
 
 test("unsupported local DTR fixture expressions fail visibly", () => {

@@ -1,0 +1,25 @@
+{
+  "scenarioId": "dme-power-wheelchair",
+  "description": "Canonical M4 DME power wheelchair prior authorization requirement-discovery scenario.",
+  "publicName": "DME Wheelchair Authorization",
+  "bundlePath": "data/seed/dme_power_wheelchair_golden/fhir-bundle.json",
+  "rulePackPath": "data/payer-rules/dme-power-wheelchair.blue-ridge-health.v1.json",
+  "request": {
+    "patientId": "patient-dme-001",
+    "coverageId": "coverage-blue-ridge-001",
+    "requestResourceType": "DeviceRequest",
+    "requestResourceId": "devicerequest-power-wheelchair-001",
+    "serviceLine": "dme_power_wheelchair",
+    "payerId": "blue-ridge-health"
+  },
+  "expected": {
+    "evaluationId": "eval-5b5c7be325d18b59",
+    "evaluationStatus": "requirements_found",
+    "requiresPriorAuth": true,
+    "requiresDocs": true,
+    "matchedRuleId": "dme-pwc-blue-ridge-001",
+    "rulePackVersion": "2026.05.01",
+    "nextAction": "create_work_item",
+    "missingDataCount": 0
+  }
+}
