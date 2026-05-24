@@ -274,21 +274,21 @@ Goal: implement replayable scripted agent team over Runtime + ToolNet.
 
 Scope:
 
-- [ ] Deterministic roles:
-  - [ ] `PriorAuthOrchestratorAgent`
-  - [ ] `RequirementDiscoveryAgent`
-  - [ ] `DocumentationAgent`
-  - [ ] `EvidenceAgent`
-  - [ ] `PacketAssemblyAgent`
-  - [ ] `ComplianceBoundaryAgent`
-- [ ] MRI happy path run:
-  - [ ] queue -> case -> requirements -> questionnaire package -> evidence list -> packet preview -> approval request.
-- [ ] Minimal golden trace smoke test:
-  - [ ] ordered agents.
-  - [ ] ordered tools.
-  - [ ] approval request exists for guarded submit.
-  - [ ] final run status `waiting_for_human`.
-- [ ] No live LLM required for happy path.
+- [x] Deterministic roles:
+  - [x] `PriorAuthOrchestratorAgent`
+  - [x] `RequirementDiscoveryAgent`
+  - [x] `DocumentationAgent`
+  - [x] `EvidenceAgent`
+  - [x] `PacketAssemblyAgent`
+  - [x] `ComplianceBoundaryAgent`
+- [x] MRI happy path run:
+  - [x] queue -> case -> requirements -> questionnaire package -> evidence list -> packet preview -> approval request.
+- [x] Minimal golden trace smoke test:
+  - [x] ordered agents.
+  - [x] ordered tools.
+  - [x] approval request exists for guarded submit.
+  - [x] final run status `waiting_for_human`.
+- [x] No live LLM required for happy path.
 
 Out of scope:
 
@@ -296,6 +296,15 @@ Out of scope:
 - autonomous queue processing.
 - real payer submission.
 - broad agent platform.
+
+### M3 Review
+
+- Implemented deterministic prior-auth role classes and `runDeterministicPriorAuthAgentTeam` in `@open-prior-auth/doctor-runtime`.
+- Added one-run orchestration over ToolNet for queue, case, requirements, DTR package, guarded questionnaire save, evidence list, packet build, and guarded mock submit.
+- Kept questionnaire save guarded, with a scripted approval for the deterministic MRI demo path.
+- Kept mock PAS submit pending, with final run status `waiting_for_human` and no submission receipt.
+- Added M3 golden smoke coverage for ordered agent trace, ordered tool trace, approved questionnaire save, pending submit approval, and receipt absence.
+- Added `demo/m3-deterministic-prior-auth-agent-team.md` and updated runtime/demo docs.
 
 ### M4: Reusable Prior-Auth Domain Proof
 
