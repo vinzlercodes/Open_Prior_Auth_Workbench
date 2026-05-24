@@ -9,6 +9,7 @@ This guide walks through every demo piece from M1 through M7 using only syntheti
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
 - M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards-shaped aliases with explicit non-conformance metadata.
+- Doctor Runtime M3: deterministic prior-auth agent team over Runtime + ToolNet, ending at guarded submit approval.
 
 No real PHI is required or expected.
 
@@ -21,6 +22,7 @@ No real PHI is required or expected.
 - Questionnaire fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`
 - DTR dependency fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`
 - Evidence fixtures: `data/evidence/mri-lumbar-spine.evidence-fixtures.json`
+- Runtime agent team story: `demo/m3-deterministic-prior-auth-agent-team.md`
 
 The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 

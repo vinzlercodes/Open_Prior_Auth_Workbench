@@ -28,6 +28,24 @@ M2 adds SQLite runtime tables:
 
 Guarded ToolNet write/submit tools pause the run and create approval requests. Approval records trace events, executes the guarded Prior Auth Core Use Case, and resumes the run. Rejection records trace events, rejects the run, and leaves prior-auth case state unchanged.
 
+## M3 Deterministic Prior-Auth Agent Team
+
+M3 adds a replayable scripted prior-auth agent team inside `packages/doctor-runtime`. The team has deterministic role classes for orchestration, requirement discovery, documentation, evidence review, packet assembly, and compliance boundary checks.
+
+The MRI happy path runs over Runtime + ToolNet only:
+
+1. List queue rows.
+2. Read the prior authorization case.
+3. Re-run requirement evaluation from case context.
+4. Get the DTR questionnaire package.
+5. Fill the remaining MRI questionnaire answers and pause for guarded save approval.
+6. Apply a scripted approval for questionnaire save.
+7. List evidence.
+8. Build the PAS-style packet preview.
+9. Request guarded mock submit approval and stop at `waiting_for_human`.
+
+The final submit is not auto-approved in M3. This preserves ApprovalGate as the compliance boundary while still proving the deterministic team can create a packet preview without a live LLM.
+
 ## Non-Goals
 
 - No Postgres in M2.
