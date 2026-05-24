@@ -1,6 +1,6 @@
 # Deterministic Screenshot Set
 
-These screenshots are generated from the checked-in synthetic MRI lumbar spine demo fixtures. They prove the visible M1-M4 workflow for external builders during M5 OSS polish.
+These screenshots are generated from checked-in synthetic demo fixtures. The numbered set proves the preserved M1-M4 workflow; the M5 cockpit screenshots prove the case-first agent cockpit for MRI and DME.
 
 ## Capture Setup
 
@@ -35,5 +35,7 @@ curl -s -X POST "http://127.0.0.1:4000/demo/seed-work-items" \
 - `05-submitted-pended-queue.png`: proves a submitted case can appear as payer-pended in the operations queue while internal status remains submitted.
 - `06-more-info-needed.png`: proves the mock payer more-info loop moves the case into the evidence workspace path.
 - `07-terminal-approved-denied.png`: proves terminal approved/denied outcomes are visible in the queue and operations history.
+- `m5-cockpit-mri.png`: proves the MRI cockpit shows case state first with explicit deterministic agent trace and pending submit approval.
+- `m5-cockpit-dme.png`: proves the DME cockpit uses the same cockpit and agent path with DME-specific requirements and packet preview.
 
 Regenerate these files whenever the visible demo flow materially changes.

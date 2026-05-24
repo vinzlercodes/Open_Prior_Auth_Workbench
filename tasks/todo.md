@@ -345,18 +345,29 @@ Goal: build prior-auth cockpit where business case state is primary and agent tr
 
 Scope:
 
-- [ ] One page supports MRI and DME scenarios.
-- [ ] Primary hierarchy:
-  - [ ] case header
-  - [ ] current blocker / next action
-  - [ ] agent run timeline
-  - [ ] evidence-to-requirement board
-  - [ ] questionnaire/package summary
-  - [ ] packet preview
-  - [ ] audit/status timeline
-  - [ ] scenario switcher
-- [ ] Do not make trace the top-level object.
-- [ ] No full analytics dashboard yet.
+- [x] One page supports MRI and DME scenarios.
+- [x] Primary hierarchy:
+  - [x] case header
+  - [x] current blocker / next action
+  - [x] agent run timeline
+  - [x] evidence-to-requirement board
+  - [x] questionnaire/package summary
+  - [x] packet preview
+  - [x] audit/status timeline
+  - [x] scenario switcher
+- [x] Do not make trace the top-level object.
+- [x] No full analytics dashboard yet.
+
+### M5 Review
+
+- Added an explicit `POST /agent-runs/prior-auth-deterministic` cockpit route that runs the deterministic prior-auth agent team through Doctor Runtime and ToolNet.
+- Added shared M5 cockpit DTOs for run response, trace events, steps, approval summaries, and evidence-to-requirement rows.
+- Reworked the web app into a case-first cockpit with scenario switcher, next-action panel, queue, agent timeline, evidence board, questionnaire summary, packet preview, and audit/status timeline.
+- Kept agent execution on demand; no automatic agent run occurs on page load or queue selection.
+- Kept mock PAS submit paused at ApprovalGate; the M5 run produces packet preview and pending submit approval, not a submission receipt.
+- Fixed same-SQLite runtime/prior-auth approval execution so cockpit runs can persist runtime trace beside prior-auth state without database locks.
+- Added `tests/agent-cockpit.contract.test.mjs` for MRI, DME, and same-SQLite cockpit runs.
+- Added `demo/m5-agent-cockpit.md`, refreshed screenshot index, and saved MRI/DME cockpit screenshots under `demo/screenshots/`.
 
 ### M6: Standards-Shaped ToolNet Tools
 
