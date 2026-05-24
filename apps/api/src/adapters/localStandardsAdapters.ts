@@ -30,8 +30,13 @@ export class LocalLaunchAdapter {
 
   constructor(private readonly repository: FixtureFhirRepository) {}
 
-  getPatientContext(patientId: string) {
-    return this.repository.getPatientContext(patientId);
+  getPatientContext(
+    patientId: string,
+    coverageId?: string,
+    requestResourceType?: string,
+    requestResourceId?: string
+  ) {
+    return this.repository.getPatientContext(patientId, coverageId, requestResourceType, requestResourceId);
   }
 
   smartConfiguration() {

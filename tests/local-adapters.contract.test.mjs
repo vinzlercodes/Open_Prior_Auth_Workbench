@@ -10,6 +10,9 @@ import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
 );
+const dmeScenario = JSON.parse(
+  readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/dme-power-wheelchair.json"), "utf8")
+);
 
 test("local standards adapters preserve existing local behavior and name non-conformance", () => {
   const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
@@ -25,4 +28,21 @@ test("local standards adapters preserve existing local behavior and name non-con
   assert.equal(adapted.evaluationId, direct.evaluationId);
   assert.deepEqual(adapters.launch.getPatientContext("patient-mri-001").patient.id, "patient-mri-001");
   assert.equal(store.getRequirementRun(adapted.evaluationId).result.evaluationStatus, "requirements_found");
+});
+
+test("local launch adapter can resolve non-ServiceRequest scenario context", () => {
+  const repository = new FixtureFhirRepository();
+  const store = new MemoryStore();
+  const adapters = createLocalStandardsAdapters(repository, store);
+  const context = adapters.launch.getPatientContext(
+    dmeScenario.request.patientId,
+    dmeScenario.request.coverageId,
+    dmeScenario.request.requestResourceType,
+    dmeScenario.request.requestResourceId
+  );
+
+  assert.equal(context.patient.id, "patient-dme-001");
+  assert.equal(context.coverage.id, "coverage-blue-ridge-001");
+  assert.equal(context.request.resourceType, "DeviceRequest");
+  assert.equal(context.request.id, "devicerequest-power-wheelchair-001");
 });

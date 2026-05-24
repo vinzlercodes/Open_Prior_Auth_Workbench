@@ -131,7 +131,7 @@ export class SubmissionService {
     );
     const evidenceEntries = evidenceAttachments.flatMap((attachment) => evidenceResources(attachment));
     const manifestEntries = evidenceAttachments.map((attachment) => manifestEntry(attachment));
-    const claim = buildClaim(packetId, workItem, session, this.store.nowIso(), manifestEntries);
+    const claim = buildClaim(packetId, workItem, session, this.store.nowIso(), manifestEntries, context);
     const resources = [
       context.patient,
       context.coverage,
@@ -253,7 +253,8 @@ function buildClaim(
   workItem: WorkItem,
   session: QuestionnaireSession,
   createdAt: string,
-  attachments: SubmissionAttachmentManifestEntry[]
+  attachments: SubmissionAttachmentManifestEntry[],
+  context: ReturnType<ClinicalContextRepository["getPatientContext"]>
 ): FhirResource {
   return {
     resourceType: "Claim",
@@ -273,7 +274,7 @@ function buildClaim(
       }
     },
     provider: {
-      display: "Northstar Spine Clinic"
+      display: typeof context.organization?.name === "string" ? context.organization.name : "Synthetic Provider Organization"
     },
     created: createdAt,
     priority: {

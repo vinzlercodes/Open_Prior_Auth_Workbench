@@ -21,6 +21,9 @@ import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
 );
+const dmeScenario = JSON.parse(
+  readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/dme-power-wheelchair.json"), "utf8")
+);
 
 function sourceFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -57,14 +60,14 @@ function createIds() {
   };
 }
 
-function createFixture(runtimePath = ":memory:") {
+function createFixture(runtimePath = ":memory:", scenario = goldenScenario) {
   const time = createClock();
-  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+  const repository = new FixtureFhirRepository(scenario.bundlePath);
   const priorAuthStore = new MemoryStore(time.clock);
   const runtimeStore = new SqliteRuntimeStore(runtimePath, time.clock);
   const result = priorAuthStore.saveEvaluation(
-    goldenScenario.request,
-    evaluateRequirement(goldenScenario.request, repository)
+    scenario.request,
+    evaluateRequirement(scenario.request, repository)
   );
   const workItem = priorAuthStore.createWorkItem({
     evaluationId: result.evaluationId,
@@ -416,5 +419,45 @@ test("M3 deterministic prior-auth agent team produces golden ordered trace and w
     "compliance"
   ]);
   assert.equal(result.steps.at(-1).status, "waiting_for_human");
+  fixture.runtimeStore.close();
+});
+
+test("M4 deterministic prior-auth agent team reuses the same workflow for DME", async () => {
+  const fixture = createFixture(":memory:", dmeScenario);
+
+  const result = await runDeterministicPriorAuthAgentTeam({
+    workItemId: fixture.workItem.id,
+    actorUserId: "m4-dme-test-agent",
+    questionnaireApprovalActorUserId: "m4-dme-test-approver"
+  }, fixture.runtimeDependencies);
+
+  assert.equal(result.run.status, "waiting_for_human");
+  assert.equal(result.caseRoot.workItem.serviceLine, "dme_power_wheelchair");
+  assert.equal(result.requirementEvaluation.matchedRuleId, "dme-pwc-blue-ridge-001");
+  assert.equal(result.questionnaireApprovalRequest.status, "approved");
+  assert.equal(result.packet.workItemId, fixture.workItem.id);
+  assert.equal(result.submitApprovalRequest.toolName, "doctor.pas.submit_mock");
+  assert.equal(result.submitApprovalRequest.status, "pending");
+
+  const toolStartedOrder = result.trace
+    .filter((event) => event.type === "tool_call.started")
+    .map((event) => event.data.toolName);
+  assert.deepEqual(toolStartedOrder, [
+    "doctor.queue.list_work_items",
+    "doctor.case.get",
+    "doctor.requirements.evaluate",
+    "doctor.dtr.get_questionnaire_package",
+    "doctor.dtr.save_response",
+    "doctor.evidence.list",
+    "doctor.pas.build_packet",
+    "doctor.pas.submit_mock"
+  ]);
+  assert.deepEqual(result.steps.map((step) => step.agent), [
+    "requirement",
+    "documentation",
+    "evidence",
+    "packet",
+    "compliance"
+  ]);
   fixture.runtimeStore.close();
 });

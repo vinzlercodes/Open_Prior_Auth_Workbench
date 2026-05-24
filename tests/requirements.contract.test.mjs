@@ -9,6 +9,9 @@ import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
 );
+const dmeScenario = JSON.parse(
+  readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/dme-power-wheelchair.json"), "utf8")
+);
 
 test("golden MRI lumbar spine scenario returns the canonical requirements result", () => {
   const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
@@ -22,6 +25,22 @@ test("golden MRI lumbar spine scenario returns the canonical requirements result
   assert.equal(result.rulePackVersion, goldenScenario.expected.rulePackVersion);
   assert.equal(result.nextAction, goldenScenario.expected.nextAction);
   assert.equal(result.missingData.length, goldenScenario.expected.missingDataCount);
+});
+
+test("golden DME power wheelchair scenario returns the canonical requirements result", () => {
+  const repository = new FixtureFhirRepository(dmeScenario.bundlePath);
+  const result = evaluateRequirement(dmeScenario.request, repository);
+
+  assert.equal(result.evaluationStatus, dmeScenario.expected.evaluationStatus);
+  assert.equal(result.evaluationId, dmeScenario.expected.evaluationId);
+  assert.equal(result.requiresPriorAuth, dmeScenario.expected.requiresPriorAuth);
+  assert.equal(result.requiresDocs, dmeScenario.expected.requiresDocs);
+  assert.equal(result.matchedRuleId, dmeScenario.expected.matchedRuleId);
+  assert.equal(result.rulePackVersion, dmeScenario.expected.rulePackVersion);
+  assert.equal(result.nextAction, dmeScenario.expected.nextAction);
+  assert.equal(result.missingData.length, dmeScenario.expected.missingDataCount);
+  assert.equal(result.requestSummary.payerName, "Blue Ridge Health");
+  assert.equal(result.requestSummary.serviceDescription, "Group 2 standard power wheelchair");
 });
 
 test("requirement evaluation registers an evaluation but does not create a work item", () => {

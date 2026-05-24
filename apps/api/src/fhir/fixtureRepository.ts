@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolveFromRepoRoot } from "../config/paths.js";
 
 export interface FhirResource {
@@ -29,11 +29,14 @@ export interface PatientContext {
 export class FixtureFhirRepository {
   private readonly resources: FhirResource[];
 
-  constructor(bundlePath = "data/seed/mri_lumbar_spine_golden/fhir-bundle.json") {
-    const bundle = JSON.parse(readFileSync(resolveFromRepoRoot(bundlePath), "utf8")) as FhirBundle;
-    this.resources = (bundle.entry ?? [])
-      .map((entry) => entry.resource)
-      .filter((resource): resource is FhirResource => Boolean(resource?.resourceType));
+  constructor(bundlePath?: string) {
+    this.resources = (bundlePath ? [bundlePath] : defaultBundlePaths())
+      .flatMap((path) => {
+        const bundle = JSON.parse(readFileSync(resolveFromRepoRoot(path), "utf8")) as FhirBundle;
+        return (bundle.entry ?? [])
+          .map((entry) => entry.resource)
+          .filter((resource): resource is FhirResource => Boolean(resource?.resourceType));
+      });
   }
 
   getResource(resourceType: string, id: string): FhirResource | null {
@@ -83,4 +86,14 @@ export class FixtureFhirRepository {
     }
     return this.getResource(resourceType, id);
   }
+}
+
+function defaultBundlePaths(): string[] {
+  const directory = resolveFromRepoRoot("data/fixtures/golden-scenarios");
+  return readdirSync(directory)
+    .filter((file) => file.endsWith(".json"))
+    .sort()
+    .map((file) => JSON.parse(readFileSync(`${directory}/${file}`, "utf8")) as { bundlePath?: string })
+    .map((scenario) => scenario.bundlePath)
+    .filter((path): path is string => Boolean(path));
 }

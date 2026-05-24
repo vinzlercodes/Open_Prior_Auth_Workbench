@@ -1,0 +1,20 @@
+{
+  "questionnaire": "http://openpriorauth.local/fhir/Questionnaire/dme-power-wheelchair-prior-auth|2026.05",
+  "libraries": [
+    {
+      "resourceType": "Library",
+      "id": "dme-power-wheelchair-fixture-expressions",
+      "status": "active",
+      "type": {
+        "text": "Local fixture expressions"
+      },
+      "extension": [
+        {
+          "url": "http://openpriorauth.local/fhir/StructureDefinition/local-fixture-expression",
+          "valueString": "dme.hasFunctionalMobilityEvidence"
+        }
+      ]
+    }
+  ],
+  "valueSets": []
+}

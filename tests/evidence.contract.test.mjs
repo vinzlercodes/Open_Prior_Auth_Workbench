@@ -16,11 +16,14 @@ import { SubmissionService } from "../packages/prior-auth-core/dist/index.js";
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
 );
+const dmeScenario = JSON.parse(
+  readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/dme-power-wheelchair.json"), "utf8")
+);
 
-function createFixture() {
-  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+function createFixture(scenario = goldenScenario) {
+  const repository = new FixtureFhirRepository(scenario.bundlePath);
   const store = new MemoryStore();
-  const result = store.saveEvaluation(goldenScenario.request, evaluateRequirement(goldenScenario.request, repository));
+  const result = store.saveEvaluation(scenario.request, evaluateRequirement(scenario.request, repository));
   const workItem = store.createWorkItem({ evaluationId: result.evaluationId, ownerUserId: "m7-test-operator" });
   const uploadDir = mkdtempSync(join(tmpdir(), "opa-evidence-"));
   const evidenceRepository = new EvidenceRepository(store, uploadDir);
@@ -56,6 +59,19 @@ function completeResponse(response) {
   return response;
 }
 
+function completeDmeResponse(response) {
+  setAnswer(response, "clinical-urgency", {
+    valueCoding: {
+      system: "http://openpriorauth.local/fhir/CodeSystem/clinical-urgency",
+      code: "routine",
+      display: "Routine"
+    }
+  });
+  setAnswer(response, "mobility-device-trial", { valueBoolean: true });
+  setAnswer(response, "home-assessment-complete", { valueBoolean: true });
+  return response;
+}
+
 function markReady(fixture) {
   const pkg = fixture.questionnaireService.getPackage(fixture.workItem.id);
   fixture.questionnaireService.saveResponse({
@@ -78,7 +94,7 @@ function sha256(value) {
 }
 
 async function withTestServer(store, callback) {
-  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+  const repository = new FixtureFhirRepository();
   const server = createServer({ repository, store });
   await new Promise((resolveServer) => server.listen(0, "127.0.0.1", resolveServer));
   try {
@@ -184,6 +200,41 @@ test("accepted evidence changes packet IDs and stable evidence keeps packet IDs 
   }
 });
 
+test("DME evidence fixtures attach and produce a DeviceRequest-backed packet preview", () => {
+  const fixture = createFixture(dmeScenario);
+  try {
+    const list = fixture.evidenceRepository.listEvidenceForWorkItem(fixture.workItem.id);
+    assert.ok(list.availableFixtures.some((item) => item.fixtureId === "fixture-dme-medical-necessity-binary"));
+    assert.ok(!list.availableFixtures.some((item) => item.fixtureId === "fixture-mri-note-binary"));
+
+    const evidence = fixture.evidenceRepository.attachFixture(fixture.workItem.id, {
+      fixtureId: "fixture-dme-medical-necessity-binary"
+    });
+    fixture.evidenceRepository.acceptEvidence(fixture.workItem.id, evidence.id, "m4-dme-test-operator");
+    const pkg = fixture.questionnaireService.getPackage(fixture.workItem.id);
+    fixture.questionnaireService.saveResponse({
+      workItemId: fixture.workItem.id,
+      questionnaireResponse: completeDmeResponse(clone(pkg.questionnaireResponse)),
+      revision: pkg.session.revision,
+      actorUserId: "m4-dme-test-operator",
+      markReadyForReview: true
+    });
+
+    const packet = fixture.submissionService.buildPacket({
+      workItemId: fixture.workItem.id,
+      actorUserId: "m4-dme-test-operator"
+    });
+    const claim = packet.bundle.entry.find((entry) => entry.resource.resourceType === "Claim").resource;
+
+    assert.equal(packet.snapshot.payerId, "blue-ridge-health");
+    assert.equal(packet.attachmentManifest.attachments[0].evidenceAttachmentId, evidence.id);
+    assert.equal(claim.item[0].servicedReference.reference, "DeviceRequest/devicerequest-power-wheelchair-001");
+    assert.equal(claim.item[0].productOrService.text, "Group 2 standard power wheelchair");
+  } finally {
+    cleanup(fixture);
+  }
+});
+
 test("upload metadata uses a local referenced location and audit records evidence lifecycle", () => {
   const fixture = createFixture();
   try {
@@ -254,4 +305,21 @@ test("standards-shaped aliases return explicit non-conformance metadata", async 
   } finally {
     cleanup(fixture);
   }
+});
+
+test("demo seed endpoint supports the DME scenario and queue row fields", async () => {
+  const store = new MemoryStore();
+  await withTestServer(store, async (baseUrl) => {
+    const created = await (await fetch(`${baseUrl}/demo/seed-work-items`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ scenarioId: "dme-power-wheelchair", count: 1, ownerUserId: "m4-dme-test-operator" })
+    })).json();
+    const queue = await (await fetch(`${baseUrl}/work-items?owner=m4-dme-test-operator`)).json();
+
+    assert.equal(created[0].serviceLine, "dme_power_wheelchair");
+    assert.equal(created[0].payerId, "blue-ridge-health");
+    assert.equal(queue[0].payerName, "Blue Ridge Health");
+    assert.equal(queue[0].serviceDescription, "Group 2 standard power wheelchair");
+  });
 });
