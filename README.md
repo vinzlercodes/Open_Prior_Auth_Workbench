@@ -1,6 +1,6 @@
 # Open Prior Auth Agent Workbench
 
-Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the planned Doctor Agent OS substrate. The current runnable baseline remains the M1-M7 Open Prior Auth Workbench: a local MRI lumbar spine flow for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
+Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the planned Doctor Agent OS substrate. The current runnable baseline remains the M1-M7 Open Prior Auth Workbench: local MRI lumbar spine and DME power wheelchair flows for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
 
 Doctor Agent OS is the implementation platform direction for reusable agent runtime, ToolNet tools, MCP exposure, approvals, traces, and evaluations. It is not a broader committed business domain. The first and only committed app/domain is provider-side prior authorization.
 
@@ -43,7 +43,7 @@ npm run demo:seed
 - M1: synthetic launch/context, local requirement evaluation, and work item creation.
 - M2: local DTR-inspired questionnaire workspace with deterministic prefill and validation.
 - M3: deterministic PAS-style local packet build, mock submission, status timeline, and audit trail.
-- M4: operations queue, aging metrics, payer pended status, more-info requests, denial reasons, and terminal outcomes.
+- M4: reusable prior-auth proof with MRI/Acme and DME/Blue Ridge scenarios sharing the same core, ToolNet, runtime, queue, packet, approval, and trace path.
 - M5: OSS polish with contributor docs, CI, fixture index, screenshots, and docs-only automation recipes.
 - M6: SQLite-backed local persistence, transaction boundaries, DB scripts, and local standards-shaped adapter boundaries.
 - M7: synthetic supporting information, DocumentReference/Binary-like packet entries, fixture DTR dependencies, standards-shaped non-conformant aliases, and SQLite evidence metadata.
@@ -82,6 +82,8 @@ Package direction is intentional: `apps/*` may import `packages/*`; `packages/*`
 - `POST /work-items`
 - `GET /work-items?status=submitted,pended&owner=unassigned&sort=age_desc`
 - `GET /work-items/:id`
+- `GET /demo/scenarios`
+- `POST /demo/seed-work-items`
 - `POST /dtr/package`
 - `POST /dtr/save-response`
 - `POST /pas/build-packet`
