@@ -5,12 +5,18 @@ All data in this directory is synthetic and safe for local demos. Do not add rea
 ## Files
 
 - `fixtures/golden-scenarios/mri-lumbar-spine.json`: Golden scenario metadata and request shape for the MRI lumbar spine prior authorization demo.
+- `fixtures/golden-scenarios/dme-power-wheelchair.json`: Golden scenario metadata and request shape for the DME power wheelchair prior authorization demo.
 - `seed/mri_lumbar_spine_golden/fhir-bundle.json`: Synthetic FHIR R4 bundle with enough evidence for deterministic requirement discovery and prefill.
+- `seed/dme_power_wheelchair_golden/fhir-bundle.json`: Synthetic FHIR R4 bundle with DME DeviceRequest, mobility diagnosis, and functional mobility evidence.
 - `seed/mri_lumbar_spine_missing_evidence/fhir-bundle.json`: Synthetic FHIR R4 bundle used to prove missing baseline evidence behavior.
 - `evidence/mri-lumbar-spine.evidence-fixtures.json`: Synthetic M7 evidence fixtures for inline base64, local Binary-like, PDF-shaped, and Bundle-like smoke-test DocumentReference modes.
+- `evidence/dme-power-wheelchair.evidence-fixtures.json`: Synthetic DME evidence fixtures for power wheelchair medical necessity.
 - `payer-rules/mri-lumbar-spine.acme-health.v1.json`: Local payer rule pack for Acme Health MRI lumbar spine requirements.
+- `payer-rules/dme-power-wheelchair.blue-ridge-health.v1.json`: Local payer rule pack for Blue Ridge Health DME power wheelchair requirements.
 - `questionnaires/mri-lumbar-spine-prior-auth.2026.04.json`: Local Questionnaire fixture used by the DTR-inspired form workspace.
 - `questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`: Local Library, ValueSet, and fixture-expression dependencies used by the M7 DTR boundary.
+- `questionnaires/dme-power-wheelchair-prior-auth.2026.05.json`: Local Questionnaire fixture for the DME power wheelchair scenario.
+- `questionnaires/dme-power-wheelchair-prior-auth.dependencies.json`: Local Library fixture dependencies for the DME DTR-like package.
 
 ## Deterministic IDs
 
@@ -25,6 +31,15 @@ All data in this directory is synthetic and safe for local demos. Do not add rea
 - Rule pack version: `2026.04.23`
 - Questionnaire canonical: `http://openpriorauth.local/fhir/Questionnaire/mri-lumbar-spine-prior-auth|2026.04`
 - Evidence fixtures: `fixture-pt-summary-inline`, `fixture-mri-note-binary`, `fixture-synthetic-pdf-binary`, `fixture-bundle-smoke`
+- DME patient: `patient-dme-001`
+- DME coverage: `coverage-blue-ridge-001`
+- DME DeviceRequest: `devicerequest-power-wheelchair-001`
+- DME payer: `blue-ridge-health`
+- DME service line: `dme_power_wheelchair`
+- DME golden evaluation: `eval-5b5c7be325d18b59`
+- DME matched rule: `dme-pwc-blue-ridge-001`
+- DME questionnaire canonical: `http://openpriorauth.local/fhir/Questionnaire/dme-power-wheelchair-prior-auth|2026.05`
+- DME evidence fixtures: `fixture-dme-mobility-summary-inline`, `fixture-dme-medical-necessity-binary`, `fixture-dme-synthetic-pdf-binary`
 
 ## Safe Modification Patterns
 

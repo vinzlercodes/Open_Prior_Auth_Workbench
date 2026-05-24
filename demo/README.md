@@ -1,11 +1,11 @@
 # Demo Guide: M1 to M7 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M7 using only synthetic MRI lumbar spine prior authorization data. The current app runs the full M4 workbench, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, and M7 adds local evidence attachments and DTR dependency fixtures. Each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M7 using only synthetic prior authorization data. The current app runs the full M4 workbench for MRI lumbar spine / Acme Health and DME power wheelchair / Blue Ridge Health, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, and M7 adds local evidence attachments and DTR dependency fixtures. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
 - M3: PAS-style local packet builder, mock PAS submission, status timeline, and audit trail.
-- M4: operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
+- M4: reusable prior-auth proof, operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
 - M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards-shaped aliases with explicit non-conformance metadata.
@@ -23,6 +23,12 @@ No real PHI is required or expected.
 - DTR dependency fixture: `data/questionnaires/mri-lumbar-spine-prior-auth.dependencies.json`
 - Evidence fixtures: `data/evidence/mri-lumbar-spine.evidence-fixtures.json`
 - Runtime agent team story: `demo/m3-deterministic-prior-auth-agent-team.md`
+- DME scenario: `data/fixtures/golden-scenarios/dme-power-wheelchair.json`
+- DME FHIR bundle: `data/seed/dme_power_wheelchair_golden/fhir-bundle.json`
+- DME rule pack: `data/payer-rules/dme-power-wheelchair.blue-ridge-health.v1.json`
+- DME questionnaire/dependencies: `data/questionnaires/dme-power-wheelchair-prior-auth.2026.05.json`, `data/questionnaires/dme-power-wheelchair-prior-auth.dependencies.json`
+- DME evidence fixtures: `data/evidence/dme-power-wheelchair.evidence-fixtures.json`
+- M4 reusable domain proof: `demo/m4-reusable-prior-auth-domain-proof.md`
 
 The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 
@@ -50,6 +56,12 @@ To seed queue rows without clicking through the UI:
 
 ```bash
 npm run demo:seed
+```
+
+To seed DME rows from the CLI:
+
+```bash
+npm run demo:seed -- 3 dme-power-wheelchair
 ```
 
 Run the API in one terminal:

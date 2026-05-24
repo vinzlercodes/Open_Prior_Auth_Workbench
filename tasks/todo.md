@@ -318,18 +318,26 @@ Scenario:
 
 Scope:
 
-- [ ] Add synthetic DME power wheelchair scenario.
-- [ ] Add payer rule pack, questionnaire, evidence fixtures, and packet preview support.
-- [ ] Same workflow runs for MRI/Acme and DME/Blue Ridge:
-  - [ ] queue
-  - [ ] case read
-  - [ ] requirements evaluation
-  - [ ] questionnaire package
-  - [ ] evidence list
-  - [ ] packet preview
-  - [ ] approval request
-  - [ ] trace output
-- [ ] No DME-specific orchestrator or copied workflow.
+- [x] Add synthetic DME power wheelchair scenario.
+- [x] Add payer rule pack, questionnaire, evidence fixtures, and packet preview support.
+- [x] Same workflow runs for MRI/Acme and DME/Blue Ridge:
+  - [x] queue
+  - [x] case read
+  - [x] requirements evaluation
+  - [x] questionnaire package
+  - [x] evidence list
+  - [x] packet preview
+  - [x] approval request
+  - [x] trace output
+- [x] No DME-specific orchestrator or copied workflow.
+
+### M4 Review
+
+- Added DME Power Wheelchair Authorization / Blue Ridge Health as second synthetic golden scenario with DeviceRequest-backed FHIR bundle, payer rule pack, questionnaire/dependencies, and evidence fixtures.
+- Generalized rule, questionnaire dependency, FHIR fixture, and evidence fixture loading so MRI and DME resolve by payer/service-line data instead of MRI-only constants.
+- Reused the same Runtime + ToolNet deterministic agent team path for MRI and DME: queue, case read, requirements, DTR package, guarded save approval, evidence list, packet preview, guarded submit approval, and trace output.
+- Added API/web support for scenario selection and DME demo seeding without introducing a DME-specific orchestrator.
+- Added contract coverage for DME requirements, questionnaire validation, evidence/packet preview, runtime trace reuse, and demo seed queue fields.
 
 ### M5: Agent Cockpit
 
