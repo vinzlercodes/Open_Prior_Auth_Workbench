@@ -17,6 +17,7 @@ import {
 } from "../packages/doctor-runtime/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
 import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
+import { SqliteStore } from "../apps/api/dist/storage/sqliteStore.js";
 
 const goldenScenario = JSON.parse(
   readFileSync(resolve(process.cwd(), "data/fixtures/golden-scenarios/mri-lumbar-spine.json"), "utf8")
@@ -35,10 +36,18 @@ function sourceFiles(directory) {
 function withTempDb(callback) {
   const directory = mkdtempSync(join(tmpdir(), "opa-runtime-"));
   const path = join(directory, "runtime.sqlite");
+  let cleanupNow = true;
   try {
-    return callback(path);
+    const result = callback(path);
+    if (result && typeof result.then === "function") {
+      cleanupNow = false;
+      return result.finally(() => rmSync(directory, { recursive: true, force: true }));
+    }
+    return result;
   } finally {
-    rmSync(directory, { recursive: true, force: true });
+    if (cleanupNow) {
+      rmSync(directory, { recursive: true, force: true });
+    }
   }
 }
 
@@ -362,6 +371,62 @@ test("guarded submit approve creates receipt and moves work item to submitted", 
   assert.equal(approved.output.packetId, packet.id);
   fixture.runtimeStore.close();
 });
+
+test("approval execution releases runtime transaction before writing to same SQLite database", async () => withTempDb(async (path) => {
+  const time = createClock();
+  const repository = new FixtureFhirRepository(goldenScenario.bundlePath);
+  const priorAuthStore = new SqliteStore(path, time.clock);
+  const runtimeStore = new SqliteRuntimeStore(path, time.clock);
+  const result = priorAuthStore.saveEvaluation(
+    goldenScenario.request,
+    evaluateRequirement(goldenScenario.request, repository)
+  );
+  const workItem = priorAuthStore.createWorkItem({
+    evaluationId: result.evaluationId,
+    ownerUserId: "runtime-sqlite-operator"
+  });
+  const runtime = createDoctorRuntime({
+    runtimeStore,
+    toolDependencies: {
+      repository,
+      store: priorAuthStore,
+      clock: time,
+      idGenerator: createIds()
+    },
+    clock: time,
+    idGenerator: createIds()
+  });
+  const packageResult = await runtime.executeRuntimeTool({
+    toolName: "doctor.dtr.get_questionnaire_package",
+    input: { workItemId: workItem.id },
+    callContext: { actorUserId: "runtime-sqlite-operator" }
+  });
+  assert.equal(packageResult.ok, true);
+  const pause = await runtime.executeRuntimeTool({
+    toolName: "doctor.dtr.save_response",
+    input: {
+      workItemId: workItem.id,
+      questionnaireResponse: completeResponse(clone(packageResult.output.questionnaireResponse)),
+      revision: packageResult.output.session.revision,
+      actorUserId: "runtime-sqlite-operator",
+      markReadyForReview: true
+    },
+    callContext: { actorUserId: "runtime-sqlite-operator" }
+  });
+  assert.equal(pause.ok, false);
+
+  const approved = await runtime.approveApprovalRequest({
+    approvalRequestId: pause.approvalRequest.id,
+    actorUserId: "runtime-sqlite-approver",
+    reason: "Approve same-database questionnaire save."
+  });
+
+  assert.equal(approved.ok, true);
+  assert.equal(priorAuthStore.getWorkItem(workItem.id).status, "review_ready");
+  assert.equal(runtimeStore.getApprovalRequest(pause.approvalRequest.id).status, "approved");
+  runtimeStore.close();
+  priorAuthStore.close();
+}));
 
 test("M3 deterministic prior-auth agent team produces golden ordered trace and waits on submit approval", async () => {
   const fixture = createFixture();
