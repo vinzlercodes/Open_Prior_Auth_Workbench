@@ -25,7 +25,51 @@ import type {
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
 
-const goldenRequest = {
+const scenarioOptions = [
+  {
+    scenarioId: "mri-lumbar-spine-golden",
+    publicName: "MRI Lumbar Spine Authorization",
+    request: {
+      patientId: "patient-mri-001",
+      coverageId: "coverage-acme-001",
+      requestResourceType: "ServiceRequest",
+      requestResourceId: "servicerequest-mri-lumbar-001",
+      serviceLine: "mri_lumbar_spine",
+      payerId: "acme-health"
+    }
+  },
+  {
+    scenarioId: "dme-power-wheelchair",
+    publicName: "DME Wheelchair Authorization",
+    request: {
+      patientId: "patient-dme-001",
+      coverageId: "coverage-blue-ridge-001",
+      requestResourceType: "DeviceRequest",
+      requestResourceId: "devicerequest-power-wheelchair-001",
+      serviceLine: "dme_power_wheelchair",
+      payerId: "blue-ridge-health"
+    }
+  }
+] as const;
+
+const goldenRequest = scenarioOptions[0].request;
+
+const moreInfoByServiceLine: Record<string, { message: string; code: string; label: string }> = {
+  mri_lumbar_spine: {
+    message: "Please provide conservative therapy details.",
+    code: "conservative-therapy-duration",
+    label: "Duration of conservative therapy"
+  },
+  dme_power_wheelchair: {
+    message: "Please provide home mobility assessment details.",
+    code: "home-mobility-assessment",
+    label: "Home mobility assessment"
+  }
+};
+
+type ScenarioRequest = typeof goldenRequest;
+
+const fallbackRequest: ScenarioRequest = {
   patientId: "patient-mri-001",
   coverageId: "coverage-acme-001",
   requestResourceType: "ServiceRequest",
@@ -37,12 +81,13 @@ const goldenRequest = {
 type PatientContext = {
   patient: { id?: string; name?: Array<{ given?: string[]; family?: string }> } | null;
   coverage: { id?: string; class?: Array<{ name?: string }> } | null;
-  request: { id?: string; code?: { text?: string } } | null;
+  request: { id?: string; code?: { text?: string }; codeCodeableConcept?: { text?: string } } | null;
   conditions: Array<{ id?: string; code?: { text?: string } }>;
   observations: Array<{ id?: string; code?: { text?: string }; valueString?: string }>;
 };
 
 export default function Home() {
+  const [scenarioId, setScenarioId] = useState(scenarioOptions[0].scenarioId);
   const [context, setContext] = useState<PatientContext | null>(null);
   const [evaluation, setEvaluation] = useState<RequirementEvaluationResult | null>(null);
   const [workItem, setWorkItem] = useState<WorkItem | null>(null);
@@ -62,17 +107,24 @@ export default function Home() {
   const [queueOwnerFilter, setQueueOwnerFilter] = useState("");
   const [isBusy, setIsBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const scenario = scenarioOptions.find((candidate) => candidate.scenarioId === scenarioId) ?? scenarioOptions[0];
+  const selectedRequest = scenario.request ?? fallbackRequest;
 
   const patientName = useMemo(() => {
     const name = context?.patient?.name?.[0];
-    return name ? [...(name.given ?? []), name.family].filter(Boolean).join(" ") : "Golden MRI case";
-  }, [context]);
+    return name ? [...(name.given ?? []), name.family].filter(Boolean).join(" ") : scenario.publicName;
+  }, [context, scenario.publicName]);
 
   async function launchShim() {
     setIsBusy(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE_URL}/context/patient/${goldenRequest.patientId}`);
+      const params = new URLSearchParams({
+        coverageId: selectedRequest.coverageId,
+        requestResourceType: selectedRequest.requestResourceType,
+        requestResourceId: selectedRequest.requestResourceId
+      });
+      const response = await fetch(`${API_BASE_URL}/context/patient/${selectedRequest.patientId}?${params.toString()}`);
       if (!response.ok) {
         throw new Error(`Context lookup failed with ${response.status}`);
       }
@@ -102,7 +154,7 @@ export default function Home() {
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify(goldenRequest)
+        body: JSON.stringify(selectedRequest)
       });
       if (!response.ok) {
         throw new Error(`Requirement evaluation failed with ${response.status}`);
@@ -382,7 +434,8 @@ export default function Home() {
     setError(null);
     try {
       const created = await postJson<WorkItem[]>("/demo/seed-work-items", {
-        count: 3
+        count: 3,
+        scenarioId
       });
       const selected = created[0];
       setWorkItem(selected);
@@ -428,12 +481,13 @@ export default function Home() {
     setIsBusy(true);
     setError(null);
     try {
+      const moreInfo = moreInfoByServiceLine[workItem.serviceLine] ?? moreInfoByServiceLine.mri_lumbar_spine;
       await postJson(`/work-items/${workItem.id}/request-more-info`, {
-        message: "Please provide conservative therapy details.",
+        message: moreInfo.message,
         requestedItems: [
           {
-            code: "conservative-therapy-duration",
-            label: "Duration of conservative therapy",
+            code: moreInfo.code,
+            label: moreInfo.label,
             required: true
           }
         ],
@@ -487,12 +541,39 @@ export default function Home() {
         <div>
           <p className="eyebrow">M4 operations workbench demo</p>
           <h1>Open Prior Auth Workbench</h1>
+          <p className="muted">{scenario.publicName}</p>
         </div>
         <div className="statusPill">Synthetic data only</div>
       </section>
 
       <section className="workspace">
         <aside className="rail">
+          <label className="field compactField">
+            <span>Scenario</span>
+            <select
+              value={scenarioId}
+              onChange={(event) => {
+                setScenarioId(event.target.value as typeof scenarioId);
+                setContext(null);
+                setEvaluation(null);
+                setWorkItem(null);
+                setQuestionnairePackage(null);
+                setFormResponse(null);
+                setSubmissionPacket(null);
+                setSubmissionReceipt(null);
+                setStatusEvents([]);
+                setAuditEvents([]);
+                setOperationsHistory(null);
+                setEvidenceList(null);
+              }}
+            >
+              {scenarioOptions.map((option) => (
+                <option key={option.scenarioId} value={option.scenarioId}>
+                  {option.publicName}
+                </option>
+              ))}
+            </select>
+          </label>
           <button type="button" onClick={launchShim} disabled={isBusy}>
             Launch shim
           </button>
@@ -572,7 +653,7 @@ export default function Home() {
             </div>
             <div>
               <dt>Request</dt>
-              <dd>{context?.request?.code?.text ?? "Not loaded"}</dd>
+              <dd>{context?.request?.code?.text ?? context?.request?.codeCodeableConcept?.text ?? "Not loaded"}</dd>
             </div>
             <div>
               <dt>Diagnosis</dt>
