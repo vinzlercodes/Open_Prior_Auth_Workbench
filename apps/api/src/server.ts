@@ -5,12 +5,21 @@ import {
   SqliteRuntimeStore,
   type ApprovalRequest
 } from "@open-prior-auth/doctor-runtime";
+import {
+  discoverCrdServices,
+  getDtrQuestionnairePackageFhir,
+  invokeCrdService,
+  submitPasClaimFhirMock
+} from "@open-prior-auth/doctor-toolnet";
 import type {
   AgentCockpitApprovalSummary,
   AgentCockpitRequirementEvidenceRow,
   AgentCockpitRunResponse,
   AttachEvidenceRequest,
+  CdsHooksRequest,
   EvidenceListResponse,
+  FhirBundle,
+  FhirParameters,
   MoreInfoRequestCreateRequest,
   PacketBuildRequest,
   PacketSubmitRequest,
@@ -32,6 +41,7 @@ import {
   getQuestionnairePackage,
   listEvidence,
   listWorkItems,
+  operationOutcome,
   OperationOutcomeError,
   OperationsService,
   saveQuestionnaireResponse,
@@ -100,8 +110,30 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "GET" && url.pathname === "/fhir/.well-known/smart-configuration") {
+    sendJson(response, 200, standardsSmartConfiguration());
+    return;
+  }
+
   if (request.method === "GET" && url.pathname === "/.well-known/smart-configuration") {
     sendJson(response, 200, adapters.launch.smartConfiguration());
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/cds-services") {
+    sendJson(response, 200, discoverCrdServices());
+    return;
+  }
+
+  const cdsServiceMatch = url.pathname.match(/^\/cds-services\/([^/]+)$/);
+  if (request.method === "POST" && cdsServiceMatch) {
+    const body = await readJson<CdsHooksRequest>(request);
+    sendJson(response, 200, invokeCrdGatewayService(
+      decodeURIComponent(cdsServiceMatch[1]),
+      body,
+      repository,
+      store
+    ));
     return;
   }
 
@@ -209,6 +241,13 @@ async function routeRequest(
     return;
   }
 
+  if (request.method === "POST" && url.pathname === "/fhir/Questionnaire/$questionnaire-package") {
+    const body = await readJson<QuestionnairePackageRequest | FhirParameters>(request);
+    const workItemId = resolveQuestionnairePackageWorkItemId(body, store);
+    sendJson(response, 200, getDtrQuestionnairePackageFhir({ workItemId }, { repository, store }));
+    return;
+  }
+
   if (request.method === "POST" && url.pathname === "/dtr/evaluate-fixture-expression") {
     const body = await readJson<{ workItemId: string; expressionName: string }>(request);
     sendJson(response, 200, adapters.dtr.evaluateFixtureExpression(body));
@@ -242,6 +281,12 @@ async function routeRequest(
   if (request.method === "POST" && url.pathname === "/pas/submit-local") {
     const body = await readJson<PacketSubmitRequest>(request);
     sendJson(response, 200, adapters.pas.submit(body));
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/fhir/Claim/$submit") {
+    const body = await readJson<PacketSubmitRequest & { claimSubmitBundle?: FhirBundle }>(request);
+    sendJson(response, 200, submitPasClaimFhirMock(body, { repository, store }));
     return;
   }
 
@@ -325,7 +370,102 @@ async function routeRequest(
     return;
   }
 
-  sendJson(response, 404, { error: "Route not found" });
+  sendJson(response, 404, operationOutcome("error", "not-found", `Route not found: ${url.pathname}`));
+}
+
+function standardsSmartConfiguration() {
+  return {
+    conformance: false,
+    productionConformance: false,
+    mode: "local-non-conformant",
+    authorization_endpoint: "http://localhost:4000/smart/authorize",
+    token_endpoint: "http://localhost:4000/smart/token",
+    capabilities: ["launch-ehr", "client-public"],
+    scopes_supported: ["launch", "patient/*.read", "openid", "fhirUser"]
+  };
+}
+
+function invokeCrdGatewayService(
+  serviceId: string,
+  request: CdsHooksRequest,
+  repository: FixtureFhirRepository,
+  store: PriorAuthStore
+) {
+  try {
+    return invokeCrdService({ serviceId, request }, { repository, store });
+  } catch (error) {
+    throw toGatewayOperationOutcome(error);
+  }
+}
+
+function toGatewayOperationOutcome(error: unknown): OperationOutcomeError {
+  const message = error instanceof Error ? error.message : "Standards gateway request failed.";
+  if (message.startsWith("Unknown local CRD service id:")) {
+    return new OperationOutcomeError(404, "not-found", message);
+  }
+  if (message.includes(" expects hook ")) {
+    return new OperationOutcomeError(400, "invalid", message);
+  }
+  if (message.includes(" is missing ") || message.includes(" must include ")) {
+    return new OperationOutcomeError(400, "required", message);
+  }
+  return new OperationOutcomeError(400, "invalid", message);
+}
+
+function resolveQuestionnairePackageWorkItemId(
+  body: QuestionnairePackageRequest | FhirParameters,
+  store: PriorAuthStore
+): string {
+  if (isRecord(body) && typeof body.workItemId === "string" && body.workItemId.length > 0) {
+    return body.workItemId;
+  }
+  if (!isFhirParameters(body)) {
+    throw new OperationOutcomeError(
+      400,
+      "required",
+      "FHIR Questionnaire/$questionnaire-package requires workItemId or Parameters with patientId, coverageId, and requestResourceId."
+    );
+  }
+
+  const patientId = parameterString(body, "patientId");
+  const coverageId = parameterString(body, "coverageId");
+  const requestResourceId = parameterString(body, "requestResourceId");
+  if (!patientId || !coverageId || !requestResourceId) {
+    throw new OperationOutcomeError(
+      400,
+      "invalid",
+      "FHIR Questionnaire/$questionnaire-package Parameters must include patientId, coverageId, and requestResourceId."
+    );
+  }
+
+  const workItem = store.listWorkItems().find((candidate) =>
+    candidate.patientId === patientId
+    && candidate.coverageId === coverageId
+    && candidate.requestResourceId === requestResourceId
+  );
+  if (!workItem) {
+    throw new OperationOutcomeError(
+      404,
+      "not-found",
+      `No work item matches Questionnaire/$questionnaire-package Parameters for patient ${patientId}, coverage ${coverageId}, request ${requestResourceId}.`
+    );
+  }
+  return workItem.id;
+}
+
+function isFhirParameters(value: unknown): value is FhirParameters {
+  return isRecord(value) && value.resourceType === "Parameters" && Array.isArray(value.parameter);
+}
+
+function parameterString(parameters: FhirParameters, name: string): string | undefined {
+  const parameter = parameters.parameter?.find((candidate) => candidate.name === name);
+  return typeof parameter?.valueString === "string" && parameter.valueString.length > 0
+    ? parameter.valueString
+    : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
 }
 
 async function runPriorAuthCockpitAgent(
