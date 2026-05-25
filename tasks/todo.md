@@ -407,17 +407,28 @@ Goal: expose standards-shaped HTTP adapters over ToolNet/core and validate via f
 
 Scope:
 
-- [ ] Routes:
-  - [ ] `GET /fhir/.well-known/smart-configuration`
-  - [ ] `GET /cds-services`
-  - [ ] `POST /cds-services/open-prior-auth-order-sign`
-  - [ ] optional `POST /cds-services/open-prior-auth-appointment-book`
-  - [ ] optional `POST /cds-services/open-prior-auth-order-dispatch`
-  - [ ] `POST /fhir/Questionnaire/$questionnaire-package`
-  - [ ] `POST /fhir/Claim/$submit`
-- [ ] OperationOutcome-style errors.
-- [ ] Conformance matrix fixture tests.
-- [ ] No certification/conformance claim.
+- [x] Routes:
+  - [x] `GET /fhir/.well-known/smart-configuration`
+  - [x] `GET /cds-services`
+  - [x] `POST /cds-services/open-prior-auth-order-sign`
+  - [x] optional `POST /cds-services/open-prior-auth-appointment-book`
+  - [x] optional `POST /cds-services/open-prior-auth-order-dispatch`
+  - [x] `POST /fhir/Questionnaire/$questionnaire-package`
+  - [x] `POST /fhir/Claim/$submit`
+- [x] OperationOutcome-style errors.
+- [x] Conformance matrix fixture tests.
+- [x] No certification/conformance claim.
+
+### M7 Review
+
+- Added Standards Gateway HTTP routes for SMART discovery, CDS Services discovery/invocation, DTR `Questionnaire/$questionnaire-package`, and PAS `Claim/$submit`.
+- Reused ToolNet standards helpers for CRD/DTR/PAS boundary payloads while keeping guarded ToolNet submit behavior unchanged; the PAS HTTP route remains a local fixture gateway adapter only.
+- Added OperationOutcome-style errors for invalid gateway calls and route misses.
+- Added `tests/standards-gateway.contract.test.mjs` covering SMART, all CRD primary hooks, DTR work item and Parameters inputs, PAS ClaimResponse output, gateway errors, and legacy alias regressions.
+- Updated `docs/standards/conformance-matrix.md`, `demo/README.md`, and `demo/m7-standards-gateway-http-routes.md`.
+- Verification: `npm test` passed 82/82 with localhost permission.
+- Verification: `npm run typecheck` passed.
+- Verification: `npm run build` passed.
 
 ### M8: Formal Doctor Evals
 
