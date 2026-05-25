@@ -497,21 +497,21 @@ Goal: document production path without implementing production system.
 
 Scope:
 
-- [ ] Create `docs/production-path/` only in M9.
-- [ ] Docs:
-  - [ ] `README.md`
-  - [ ] `fhir-data-plane.md`
-  - [ ] `security-authz-audit.md`
-  - [ ] `ehr-payer-integration.md`
-  - [ ] `deployment-observability.md`
-  - [ ] `conformance-test-path.md`
-- [ ] Every doc includes:
-  - [ ] current OSS posture.
-  - [ ] production requirement.
-  - [ ] adapter/interface to build.
-  - [ ] explicit non-goals.
-  - [ ] risks/blockers.
-  - [ ] sequence prerequisites.
+- [x] Create `docs/production-path/` only in M9.
+- [x] Docs:
+  - [x] `README.md`
+  - [x] `fhir-data-plane.md`
+  - [x] `security-authz-audit.md`
+  - [x] `ehr-payer-integration.md`
+  - [x] `deployment-observability.md`
+  - [x] `conformance-test-path.md`
+- [x] Every doc includes:
+  - [x] current OSS posture.
+  - [x] production requirement.
+  - [x] adapter/interface to build.
+  - [x] explicit non-goals.
+  - [x] risks/blockers.
+  - [x] sequence prerequisites.
 
 Out of scope:
 
@@ -522,6 +522,16 @@ Out of scope:
 - OpenTelemetry/Langfuse implementation.
 - Kubernetes hardening.
 - production PHI storage.
+
+### M9 Review
+
+- Created `docs/production-path/` with README, FHIR data plane, security/authz/audit, EHR/payer integration, deployment/observability, and conformance test path docs.
+- Kept M9 docs-only: no production system, package, app/runtime code, migrations, deployment config, SMART launch, payer transport, PHI storage, or implementation adapters were added.
+- Grounded production-path requirements in official SMART App Launch v2.2.0, Da Vinci CRD v2.2.1, DTR v2.2.0, PAS v2.2.1, CMS-0057-F, and FHIR Security references.
+- Docs verification: required sections present in all six docs, local links resolve, and forbidden positive-claim scan returned no matches.
+- Verification: initial sandboxed `npm test` failed only on expected `listen EPERM: operation not permitted 127.0.0.1`; rerun with localhost permission passed 87/87.
+- Verification: `npm run typecheck` passed.
+- Verification: `npm run build` passed.
 
 ### Next Action
 
