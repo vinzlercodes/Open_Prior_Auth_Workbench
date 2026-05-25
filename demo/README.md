@@ -8,7 +8,7 @@ This guide walks through every demo piece from M1 through M7 using only syntheti
 - M4: reusable prior-auth proof, operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
-- M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards-shaped aliases with explicit non-conformance metadata.
+- M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards gateway routes with explicit non-conformance metadata.
 - Doctor Runtime M3: deterministic prior-auth agent team over Runtime + ToolNet, ending at guarded submit approval.
 
 No real PHI is required or expected.
@@ -109,14 +109,16 @@ After creating a work item and opening the form workspace:
 6. Confirm the packet panel shows a non-zero attachment count.
 7. Confirm the audit trail includes evidence attach, upload, accept, and include-in-packet events.
 
-The standards-shaped aliases can be inspected locally:
+The standards gateway and legacy aliases can be inspected locally:
 
 ```bash
 curl -s "$API_BASE/standards/boundaries" | jq
+curl -s "$API_BASE/fhir/.well-known/smart-configuration" | jq
+curl -s "$API_BASE/cds-services" | jq
 curl -s "$API_BASE/.well-known/smart-configuration" | jq
 ```
 
-Every standards-shaped alias is local and explicitly non-conformant.
+The complete gateway route walkthrough is in `demo/m7-standards-gateway-http-routes.md`. Every standards-shaped gateway route and alias is local and explicitly non-conformant.
 
 ## API Helper Setup
 
