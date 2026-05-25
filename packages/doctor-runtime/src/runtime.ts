@@ -1,6 +1,7 @@
 import {
   executeDoctorTool,
   getDoctorToolDefinition,
+  submitPasClaimFhirMock,
   type DoctorToolError,
   type DoctorToolName
 } from "@open-prior-auth/doctor-toolnet";
@@ -409,6 +410,11 @@ function executeApprovedGuardedTool(
         approvalRequest.input as Parameters<typeof submitMockPacket>[0],
         dependencies.toolDependencies.repository,
         dependencies.toolDependencies.store
+      );
+    case "doctor.pas.submit_claim_fhir_mock":
+      return submitPasClaimFhirMock(
+        approvalRequest.input as Parameters<typeof submitPasClaimFhirMock>[0],
+        dependencies.toolDependencies
       );
     default:
       throw new Error(`Approval request ${approvalRequest.id} is not for a guarded runtime tool.`);

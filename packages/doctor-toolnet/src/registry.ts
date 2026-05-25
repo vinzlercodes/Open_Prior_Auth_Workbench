@@ -1,5 +1,9 @@
 import { APPROVAL_EXECUTOR_REQUIRED } from "./errors.js";
 import {
+  claimResponseMapInputSchema,
+  claimSubmitInputSchema,
+  crdInvokeInputSchema,
+  emptyInputSchema,
   outputArraySchema,
   outputObjectSchema,
   packetBuildInputSchema,
@@ -73,6 +77,26 @@ const tools: readonly DoctorToolDefinition[] = [
     outputSchema: outputObjectSchema("RequirementEvaluationResult.")
   },
   {
+    name: "doctor.crd.discover_services",
+    category: "crd",
+    description: "List local non-conformant CDS Hooks CRD-shaped services.",
+    riskLevel: "read",
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema: emptyInputSchema,
+    outputSchema: outputObjectSchema("CdsServicesResponse with explicit non-conformance metadata.")
+  },
+  {
+    name: "doctor.crd.invoke_service",
+    category: "crd",
+    description: "Invoke a local non-conformant CRD-shaped CDS Hooks service over requirement evaluation.",
+    riskLevel: "draft",
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema: crdInvokeInputSchema,
+    outputSchema: outputObjectSchema("CdsHooksResponse with local requirement evaluation card.")
+  },
+  {
     name: "doctor.dtr.get_questionnaire_package",
     category: "dtr",
     description: "Get or initialize the local DTR questionnaire package for a work item.",
@@ -83,6 +107,16 @@ const tools: readonly DoctorToolDefinition[] = [
     outputSchema: outputObjectSchema("QuestionnairePackage.")
   },
   {
+    name: "doctor.dtr.get_questionnaire_package_fhir",
+    category: "dtr",
+    description: "Get a local non-conformant FHIR Parameters-shaped DTR questionnaire package.",
+    riskLevel: "draft",
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema: workItemIdInputSchema,
+    outputSchema: outputObjectSchema("FHIR Parameters-shaped local DTR questionnaire package.")
+  },
+  {
     name: "doctor.pas.build_packet",
     category: "pas",
     description: "Build a PAS-style local submission packet draft.",
@@ -91,6 +125,16 @@ const tools: readonly DoctorToolDefinition[] = [
     executable: true,
     inputSchema: packetBuildInputSchema,
     outputSchema: outputObjectSchema("SubmissionPacket.")
+  },
+  {
+    name: "doctor.pas.build_claim_submit_bundle",
+    category: "pas",
+    description: "Build a local non-conformant FHIR Claim submit Bundle from a packet preview.",
+    riskLevel: "draft",
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema: packetBuildInputSchema,
+    outputSchema: outputObjectSchema("FHIR Claim submit Bundle wrapper.")
   },
   {
     name: "doctor.dtr.save_response",
@@ -119,6 +163,30 @@ const tools: readonly DoctorToolDefinition[] = [
     executable: false,
     inputSchema: packetSubmitInputSchema,
     outputSchema: outputObjectSchema("Guarded tool error.")
+  },
+  {
+    name: "doctor.pas.submit_claim_fhir_mock",
+    category: "pas",
+    description: "Guarded local non-conformant FHIR Claim submit mock contract.",
+    riskLevel: "guarded_submit",
+    approval: {
+      approvalRequired: true,
+      blockedCode: APPROVAL_EXECUTOR_REQUIRED,
+      reason: "Submitting a standards-shaped Claim changes payer-facing state and requires ApprovalGate."
+    },
+    executable: false,
+    inputSchema: claimSubmitInputSchema,
+    outputSchema: outputObjectSchema("FHIR ClaimResponse Bundle wrapper.")
+  },
+  {
+    name: "doctor.pas.map_claim_response_to_runtime_receipt",
+    category: "pas",
+    description: "Map a local ClaimResponse Bundle into runtime receipt-shaped output without persisting state.",
+    riskLevel: "read",
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema: claimResponseMapInputSchema,
+    outputSchema: outputObjectSchema("Runtime receipt-shaped ClaimResponse mapping.")
   }
 ];
 

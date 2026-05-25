@@ -7,8 +7,15 @@ import type {
   QuestionnaireResponseSaveRequest,
   RequirementEvaluationRequest,
   RequirementEvaluationResult,
+  CdsHooksRequest,
+  CdsHooksResponse,
+  CdsServicesResponse,
+  FhirBundle,
+  LocalDtrExpressionEvaluation,
+  FhirParameters,
   StatusEvent,
   SubmissionPacket,
+  SubmissionReceipt,
   WorkItemQueueQuery,
   WorkItemQueueRow
 } from "@open-prior-auth/shared-types";
@@ -25,12 +32,18 @@ export type DoctorToolName =
   | "doctor.case.get_audit_trace"
   | "doctor.evidence.list"
   | "doctor.requirements.evaluate"
+  | "doctor.crd.discover_services"
+  | "doctor.crd.invoke_service"
   | "doctor.dtr.get_questionnaire_package"
+  | "doctor.dtr.get_questionnaire_package_fhir"
   | "doctor.pas.build_packet"
+  | "doctor.pas.build_claim_submit_bundle"
   | "doctor.dtr.save_response"
-  | "doctor.pas.submit_mock";
+  | "doctor.pas.submit_mock"
+  | "doctor.pas.submit_claim_fhir_mock"
+  | "doctor.pas.map_claim_response_to_runtime_receipt";
 
-export type DoctorToolCategory = "case" | "queue" | "evidence" | "requirements" | "dtr" | "pas";
+export type DoctorToolCategory = "case" | "queue" | "evidence" | "requirements" | "crd" | "dtr" | "pas";
 
 export type DoctorToolRiskLevel = "read" | "draft" | "guarded_write" | "guarded_submit";
 
@@ -90,8 +103,53 @@ export type DoctorToolOutput =
   | AuditEvent[]
   | EvidenceListResponse
   | RequirementEvaluationResult
+  | CdsServicesResponse
+  | CdsHooksResponse
   | QuestionnairePackage
-  | SubmissionPacket;
+  | StandardsDtrQuestionnairePackageOutput
+  | SubmissionPacket
+  | StandardsPasClaimSubmitBundleOutput
+  | StandardsPasSubmitMockOutput
+  | StandardsPasRuntimeReceiptMapping;
+
+export interface StandardsDtrQuestionnairePackageOutput {
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+  boundary: "dtr";
+  operation: "Questionnaire/$questionnaire-package";
+  response: FhirParameters;
+  expressionEvaluations: LocalDtrExpressionEvaluation[];
+}
+
+export interface StandardsPasClaimSubmitBundleOutput {
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+  boundary: "pas";
+  operation: "Claim/$submit";
+  packet: SubmissionPacket;
+  claimSubmitBundle: FhirBundle;
+}
+
+export interface StandardsPasSubmitMockOutput {
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+  boundary: "pas";
+  operation: "Claim/$submit";
+  receipt: SubmissionReceipt;
+  claimResponseBundle: FhirBundle;
+}
+
+export interface StandardsPasRuntimeReceiptMapping {
+  conformance: false;
+  productionConformance: false;
+  mode: "local-non-conformant";
+  boundary: "pas";
+  packetId: string;
+  receipt: SubmissionReceipt;
+}
 
 export type DoctorToolExecutionResult =
   | {
@@ -134,10 +192,16 @@ export type DoctorToolInputByName = {
   "doctor.case.get_audit_trace": { workItemId: string };
   "doctor.evidence.list": { workItemId: string };
   "doctor.requirements.evaluate": { request: RequirementEvaluationRequest };
+  "doctor.crd.discover_services": Record<string, never>;
+  "doctor.crd.invoke_service": { serviceId: string; request: CdsHooksRequest };
   "doctor.dtr.get_questionnaire_package": { workItemId: string };
+  "doctor.dtr.get_questionnaire_package_fhir": { workItemId: string };
   "doctor.pas.build_packet": PacketBuildRequest;
+  "doctor.pas.build_claim_submit_bundle": PacketBuildRequest;
   "doctor.dtr.save_response": QuestionnaireResponseSaveRequest;
   "doctor.pas.submit_mock": PacketSubmitRequest;
+  "doctor.pas.submit_claim_fhir_mock": PacketSubmitRequest & { claimSubmitBundle?: FhirBundle };
+  "doctor.pas.map_claim_response_to_runtime_receipt": { packetId: string; claimResponseBundle: FhirBundle };
 };
 
 export interface DoctorToolExecutionRequest<Name extends DoctorToolName = DoctorToolName> {

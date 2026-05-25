@@ -375,15 +375,31 @@ Goal: make internal ToolNet/core actions standards-shaped before exposing protoc
 
 Scope:
 
-- [ ] Add standards-shaped ToolNet tools:
-  - [ ] `doctor.crd.discover_services`
-  - [ ] `doctor.crd.invoke_service`
-  - [ ] `doctor.dtr.get_questionnaire_package`
-  - [ ] `doctor.pas.build_packet`
-  - [ ] `doctor.pas.submit_mock`
-- [ ] Keep submit guarded by M2 ApprovalGate.
-- [ ] Add standards mappers/schemas and fixture-level tests.
-- [ ] Maintain synthetic/non-conformant claim language.
+- [x] Add standards-shaped ToolNet tools:
+  - [x] `doctor.crd.discover_services`
+  - [x] `doctor.crd.invoke_service`
+  - [x] `doctor.dtr.get_questionnaire_package_fhir`
+  - [x] `doctor.pas.build_claim_submit_bundle`
+  - [x] `doctor.pas.submit_claim_fhir_mock`
+  - [x] `doctor.pas.map_claim_response_to_runtime_receipt`
+- [x] Preserve existing runtime/cockpit payload tools:
+  - [x] `doctor.dtr.get_questionnaire_package`
+  - [x] `doctor.pas.build_packet`
+  - [x] `doctor.pas.submit_mock`
+- [x] Keep submit guarded by M2 ApprovalGate.
+- [x] Add standards mappers/schemas and fixture-level tests.
+- [x] Maintain synthetic/non-conformant claim language.
+
+### M6 Review
+
+- Added standards-shaped sibling ToolNet tools for local CRD service discovery/invocation, DTR FHIR Parameters packaging, PAS Claim submit Bundle build, guarded PAS Claim mock submit, and ClaimResponse-to-receipt mapping.
+- Preserved existing runtime/cockpit tools and deterministic agent paths; the cockpit still uses concise local DTOs while standards tools expose heavier FHIR-shaped payloads.
+- Kept direct ToolNet submit calls guarded with `APPROVAL_EXECUTOR_REQUIRED`; Doctor Runtime ApprovalGate can pause and approve `doctor.pas.submit_claim_fhir_mock`.
+- Added fixture-level ToolNet and Runtime contract coverage for CRD fixtures, DTR Parameters output, PAS Claim Bundle output, guarded direct submit behavior, approval execution, and idempotent mock submit receipts.
+- Added `demo/m6-standards-shaped-toolnet-tools.md` and refreshed ToolNet package docs.
+- Verification: first sandboxed `npm test` passed implementation paths but failed on expected `listen EPERM: operation not permitted 127.0.0.1`; rerun with localhost permission passed 76/76.
+- Verification: `npm run typecheck` passed.
+- Verification: `npm run build` passed.
 
 ### M7: Standards Gateway HTTP Routes + Tests
 

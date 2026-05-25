@@ -17,6 +17,11 @@ const objectSchema = (
   additionalProperties: false
 });
 
+export const emptyInputSchema = objectSchema(
+  "No input.",
+  {}
+);
+
 export const workItemIdInputSchema = objectSchema(
   "Tool input scoped to a prior authorization work item.",
   {
@@ -68,6 +73,35 @@ export const requirementsEvaluateInputSchema = objectSchema(
   ["request"]
 );
 
+export const crdInvokeInputSchema = objectSchema(
+  "CDS Hooks CRD service invocation input.",
+  {
+    serviceId: stringSchema("CDS service id to invoke."),
+    request: {
+      type: "object",
+      description: "CDS Hooks request payload.",
+      properties: {
+        hook: stringSchema("CDS Hooks hook name."),
+        hookInstance: stringSchema("CDS Hooks hook instance id."),
+        fhirServer: stringSchema("FHIR server base URL from the fixture."),
+        context: {
+          type: "object",
+          description: "CDS Hooks context.",
+          additionalProperties: true
+        },
+        prefetch: {
+          type: "object",
+          description: "Optional CDS Hooks prefetch resources.",
+          additionalProperties: true
+        }
+      },
+      required: ["hook", "hookInstance", "context"],
+      additionalProperties: false
+    }
+  },
+  ["serviceId", "request"]
+);
+
 export const packetBuildInputSchema = objectSchema(
   "PAS-style local submission packet build request.",
   {
@@ -106,6 +140,33 @@ export const packetSubmitInputSchema = objectSchema(
     actorUserId: stringSchema("Optional actor user id for audit linkage.")
   },
   ["packetId"]
+);
+
+export const claimSubmitInputSchema = objectSchema(
+  "Guarded local non-conformant PAS Claim submit input.",
+  {
+    packetId: stringSchema("Submission packet identifier."),
+    claimSubmitBundle: {
+      type: "object",
+      description: "Optional FHIR Claim submit Bundle used as standards-shaped evidence.",
+      additionalProperties: true
+    },
+    actorUserId: stringSchema("Optional actor user id for audit linkage.")
+  },
+  ["packetId"]
+);
+
+export const claimResponseMapInputSchema = objectSchema(
+  "Map a local ClaimResponse Bundle back into a runtime receipt-shaped result.",
+  {
+    packetId: stringSchema("Submission packet identifier."),
+    claimResponseBundle: {
+      type: "object",
+      description: "FHIR ClaimResponse Bundle.",
+      additionalProperties: true
+    }
+  },
+  ["packetId", "claimResponseBundle"]
 );
 
 export const outputObjectSchema = (description: string): DoctorToolSchema => ({

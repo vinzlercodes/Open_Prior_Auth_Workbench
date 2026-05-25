@@ -7,6 +7,14 @@ export {
   getDoctorToolDefinition,
   listDoctorTools
 } from "./registry.js";
+export {
+  buildPasClaimSubmitBundle,
+  discoverCrdServices,
+  getDtrQuestionnairePackageFhir,
+  invokeCrdService,
+  mapPasClaimResponseToRuntimeReceipt,
+  submitPasClaimFhirMock
+} from "./standards.js";
 export type {
   DoctorToolApprovalMetadata,
   DoctorToolCallContext,
@@ -24,5 +32,9 @@ export type {
   DoctorToolName,
   DoctorToolRegistry,
   DoctorToolRiskLevel,
-  DoctorToolSchema
+  DoctorToolSchema,
+  StandardsDtrQuestionnairePackageOutput,
+  StandardsPasClaimSubmitBundleOutput,
+  StandardsPasRuntimeReceiptMapping,
+  StandardsPasSubmitMockOutput
 } from "./types.js";
