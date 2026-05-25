@@ -1,5 +1,24 @@
 # Open Prior Auth Workbench Audit
 
+## Prior Auth Domain Guardian Subagent
+
+### Plan
+
+- [x] Review existing subagent conventions and project constraints.
+- [x] Populate shared subagent instructions for this repository.
+- [x] Add one focused prior-authorization domain guardian role.
+- [x] Add the provided Semble code search subagent role.
+- [x] Align subagent filenames and frontmatter conventions.
+- [x] Verify the new subagent artifacts are readable.
+
+### Review
+
+- Added shared project subagent rules to `subagents/instructions.md`.
+- Added `subagents/prior-auth-domain-guardian.md` as a focused reviewer for domain language, architecture boundaries, safety/conformance claims, and roadmap alignment.
+- Added `subagents/semble-search.md` from the provided subagent spec for semantic code search with `semble`.
+- Updated subagent instructions to require YAML frontmatter and allow kebab-case role filenames that match frontmatter names.
+- Verification: confirmed the Markdown files exist and are readable.
+
 ## Doctor Agent OS Roadmap Spec
 
 ### Canonical Direction
@@ -675,6 +694,19 @@ Out of scope:
 - Verification: `npm run typecheck` passed across API, web, and shared-types workspaces.
 - Verification: `npm run build` passed across API, web, and shared-types workspaces.
 - Smoke check: local API M7 flow evaluated requirements, created the golden work item, checked standards boundaries, attached and accepted evidence, marked the questionnaire ready, built an M7 packet, and returned one manifest attachment.
+
+## Subagent Setup Folder
+
+### Plan
+
+- [x] Create a dedicated `subagents/` folder at the repo root.
+- [x] Add a Markdown instructions file for subagent setup and operating rules.
+- [x] Verify the new artifact exists and is readable.
+
+### Review
+
+- Added `subagents/instructions.md` with purpose, folder conventions, subagent instruction template, operating rules, and verification guidance.
+- Verification: confirmed the file exists and renders as Markdown text.
 
 ## Current Redo Audit
 
