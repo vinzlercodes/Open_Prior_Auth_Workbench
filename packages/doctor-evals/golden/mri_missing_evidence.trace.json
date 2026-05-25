@@ -1,0 +1,6 @@
+[
+  { "type": "run.started" },
+  { "type": "task.started", "taskToolName": "doctor.requirements.evaluate" },
+  { "type": "tool_call.started", "toolName": "doctor.requirements.evaluate" },
+  { "type": "tool_call.succeeded", "toolName": "doctor.requirements.evaluate" }
+]
