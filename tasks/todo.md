@@ -436,25 +436,25 @@ Goal: add narrow deterministic regression/safety harness, not eval platform.
 
 Scope:
 
-- [ ] Create real package manifest/config for `packages/doctor-evals`.
-- [ ] Scenario registry:
-  - [ ] `mri_happy_path`
-  - [ ] `dme_power_wheelchair_happy_path`
-  - [ ] `mri_missing_evidence`
-  - [ ] `mri_prompt_injection_evidence`
-- [ ] Golden trace diffs.
-- [ ] Tool policy assertions:
-  - [ ] no unexpected tools.
-  - [ ] guarded writes require approval.
-  - [ ] no guarded write executes without ApprovalGate.
-  - [ ] no internal HTTP route/tool calls from agents.
-- [ ] Safety assertions:
-  - [ ] no PHI-ready claim.
-  - [ ] no certified conformance claim.
-  - [ ] no real payer submission claim.
-  - [ ] evidence text treated as data, not instruction.
-- [ ] `npm run evals`.
-- [ ] JSON and markdown reports.
+- [x] Create real package manifest/config for `packages/doctor-evals`.
+- [x] Scenario registry:
+  - [x] `mri_happy_path`
+  - [x] `dme_power_wheelchair_happy_path`
+  - [x] `mri_missing_evidence`
+  - [x] `mri_prompt_injection_evidence`
+- [x] Golden trace diffs.
+- [x] Tool policy assertions:
+  - [x] no unexpected tools.
+  - [x] guarded writes require approval.
+  - [x] no guarded write executes without ApprovalGate.
+  - [x] no internal HTTP route/tool calls from agents.
+- [x] Safety assertions:
+  - [x] no PHI-ready claim.
+  - [x] no certified conformance claim.
+  - [x] no real payer submission claim.
+  - [x] evidence text treated as data, not instruction.
+- [x] `npm run evals`.
+- [x] JSON and markdown reports.
 
 Out of scope:
 
@@ -463,6 +463,14 @@ Out of scope:
 - eval dashboard UI.
 - production observability.
 - Langfuse/OpenTelemetry.
+
+### M8 Review
+
+- Implemented `@open-prior-auth/doctor-evals` as a real workspace package with deterministic scenario registry, package-local FHIR repository and in-memory store adapters, golden normalized trace diffs, policy assertions, safety assertions, CLI, and reports.
+- Added four eval scenarios: MRI happy path, DME power wheelchair happy path, MRI missing baseline evidence, and MRI prompt-injection evidence.
+- Added `npm run evals`, JSON report `packages/doctor-evals/reports/latest.json`, Markdown report `packages/doctor-evals/reports/latest.md`, and demo notes in `demo/m8-formal-doctor-evals.md`.
+- Added contract coverage in `tests/doctor-evals.contract.test.mjs` for package exports, scenario registry, trace diff behavior, policy/safety assertions, report generation, and source boundary checks.
+- Verification: `npm run evals` passed 4/4 scenarios and 88/88 assertions.
 
 ### M9: Production-Path Docs
 

@@ -1,6 +1,6 @@
-# Demo Guide: M1 to M7 Open Prior Auth Workbench
+# Demo Guide: M1 to M8 Open Prior Auth Workbench
 
-This guide walks through every demo piece from M1 through M7 using only synthetic prior authorization data. The current app runs the full M4 workbench for MRI lumbar spine / Acme Health and DME power wheelchair / Blue Ridge Health, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, and M7 adds local evidence attachments and DTR dependency fixtures. Each milestone remains visible as a separate part of the flow:
+This guide walks through every demo piece from M1 through M8 using only synthetic prior authorization data. The current app runs the full M4 workbench for MRI lumbar spine / Acme Health and DME power wheelchair / Blue Ridge Health, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, M7 adds local evidence attachments and DTR dependency fixtures, and M8 adds formal deterministic evals. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
@@ -9,6 +9,7 @@ This guide walks through every demo piece from M1 through M7 using only syntheti
 - M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
 - M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
 - M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards gateway routes with explicit non-conformance metadata.
+- M8: deterministic doctor evals for golden traces, ToolNet policy, ApprovalGate, and safety claims.
 - Doctor Runtime M3: deterministic prior-auth agent team over Runtime + ToolNet, ending at guarded submit approval.
 
 No real PHI is required or expected.
@@ -29,6 +30,7 @@ No real PHI is required or expected.
 - DME questionnaire/dependencies: `data/questionnaires/dme-power-wheelchair-prior-auth.2026.05.json`, `data/questionnaires/dme-power-wheelchair-prior-auth.dependencies.json`
 - DME evidence fixtures: `data/evidence/dme-power-wheelchair.evidence-fixtures.json`
 - M4 reusable domain proof: `demo/m4-reusable-prior-auth-domain-proof.md`
+- M8 formal evals: `demo/m8-formal-doctor-evals.md`
 
 The canonical golden evaluation is `eval-8a673eae6c28942c`. Creating a work item from that evaluation produces `wi-8a673eae6c28` in a fresh API process.
 
@@ -119,6 +121,24 @@ curl -s "$API_BASE/.well-known/smart-configuration" | jq
 ```
 
 The complete gateway route walkthrough is in `demo/m7-standards-gateway-http-routes.md`. Every standards-shaped gateway route and alias is local and explicitly non-conformant.
+
+## M8: Formal Doctor Evals
+
+Run:
+
+```bash
+npm run evals
+```
+
+Expected result:
+
+```text
+M8 Doctor Evals: passed
+Scenarios: 4/4 passed
+Assertions: 88/88 passed
+```
+
+The eval report is written to `packages/doctor-evals/reports/latest.json` and `packages/doctor-evals/reports/latest.md`.
 
 ## API Helper Setup
 
