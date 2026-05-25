@@ -112,6 +112,12 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function readStandardFixture(fileName) {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), "data/standards", fileName), "utf8")
+  );
+}
+
 function setAnswer(response, linkId, answer) {
   const item = response.item.find((candidate) => candidate.linkId === linkId);
   assert.ok(item, `Expected response item ${linkId}`);
@@ -369,6 +375,76 @@ test("guarded submit approve creates receipt and moves work item to submitted", 
   assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 1);
   assert.equal(fixture.priorAuthStore.getWorkItem(fixture.workItem.id).status, "submitted");
   assert.equal(approved.output.packetId, packet.id);
+  fixture.runtimeStore.close();
+});
+
+test("guarded standards-shaped Claim submit pauses, approves, and preserves receipt idempotency", async () => {
+  const fixture = createFixture();
+  const packet = await preparePacket(fixture);
+  const built = await fixture.runtime.executeRuntimeTool({
+    toolName: "doctor.pas.build_claim_submit_bundle",
+    input: {
+      workItemId: fixture.workItem.id,
+      actorUserId: "runtime-test-operator"
+    },
+    callContext: { actorUserId: "runtime-test-operator" }
+  });
+  assert.equal(built.ok, true);
+  assert.equal(built.output.claimSubmitBundle.resourceType, "Bundle");
+  assert.ok(built.output.claimSubmitBundle.entry.some((entry) => entry.resource.resourceType === "Claim"));
+
+  const pause = await fixture.runtime.executeRuntimeTool({
+    toolName: "doctor.pas.submit_claim_fhir_mock",
+    input: {
+      packetId: packet.id,
+      actorUserId: "runtime-test-operator",
+      claimSubmitBundle: readStandardFixture("pas-claim-submit.bundle.json")
+    },
+    callContext: { actorUserId: "runtime-test-operator" }
+  });
+
+  assert.equal(pause.ok, false);
+  assert.equal(pause.run.status, "waiting_for_human");
+  assert.equal(pause.record.status, "waiting_for_approval");
+  assert.equal(pause.approvalRequest.toolName, "doctor.pas.submit_claim_fhir_mock");
+  assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 0);
+
+  const approved = await fixture.runtime.approveApprovalRequest({
+    approvalRequestId: pause.approvalRequest.id,
+    actorUserId: "runtime-test-approver",
+    reason: "Submit synthetic Claim Bundle."
+  });
+
+  assert.equal(approved.ok, true);
+  assert.equal(approved.output.conformance, false);
+  assert.equal(approved.output.productionConformance, false);
+  assert.equal(approved.output.claimResponseBundle.resourceType, "Bundle");
+  assert.equal(approved.output.claimResponseBundle.entry[0].resource.resourceType, "ClaimResponse");
+  assert.equal(approved.output.receipt.packetId, packet.id);
+  assert.equal(approved.output.receipt.idempotent, false);
+  assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 1);
+  assert.equal(fixture.priorAuthStore.getWorkItem(fixture.workItem.id).status, "submitted");
+
+  const secondPause = await fixture.runtime.executeRuntimeTool({
+    toolName: "doctor.pas.submit_claim_fhir_mock",
+    input: {
+      packetId: packet.id,
+      actorUserId: "runtime-test-operator",
+      claimSubmitBundle: built.output.claimSubmitBundle
+    },
+    callContext: { actorUserId: "runtime-test-operator" }
+  });
+  assert.equal(secondPause.ok, false);
+
+  const secondApproved = await fixture.runtime.approveApprovalRequest({
+    approvalRequestId: secondPause.approvalRequest.id,
+    actorUserId: "runtime-test-approver",
+    reason: "Confirm idempotent synthetic submit."
+  });
+  assert.equal(secondApproved.ok, true);
+  assert.equal(secondApproved.output.receipt.packetId, packet.id);
+  assert.equal(secondApproved.output.receipt.idempotent, true);
+  assert.equal(fixture.priorAuthStore.getSubmissionReceiptsForWorkItem(fixture.workItem.id).length, 1);
   fixture.runtimeStore.close();
 });
 

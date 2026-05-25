@@ -10,6 +10,13 @@ import {
 } from "@open-prior-auth/prior-auth-core";
 import { approvalExecutorRequired, toDoctorToolError } from "./errors.js";
 import { getDoctorToolDefinition, listDoctorTools } from "./registry.js";
+import {
+  buildPasClaimSubmitBundle,
+  discoverCrdServices,
+  getDtrQuestionnairePackageFhir,
+  invokeCrdService,
+  mapPasClaimResponseToRuntimeReceipt
+} from "./standards.js";
 import type {
   DoctorToolCallRecord,
   DoctorToolDependencies,
@@ -103,16 +110,35 @@ function executeCoreTool(
       const input = request.input as { request: Parameters<typeof evaluateRequirements>[0] };
       return evaluateRequirements(input.request, dependencies.repository, dependencies.store);
     }
+    case "doctor.crd.discover_services":
+      return discoverCrdServices();
+    case "doctor.crd.invoke_service": {
+      const input = request.input as Parameters<typeof invokeCrdService>[0];
+      return invokeCrdService(input, dependencies);
+    }
     case "doctor.dtr.get_questionnaire_package": {
       const input = request.input as { workItemId: string };
       return getQuestionnairePackage({ workItemId: input.workItemId }, dependencies.repository, dependencies.store);
+    }
+    case "doctor.dtr.get_questionnaire_package_fhir": {
+      const input = request.input as { workItemId: string };
+      return getDtrQuestionnairePackageFhir(input, dependencies);
     }
     case "doctor.pas.build_packet": {
       const input = request.input as Parameters<typeof buildSubmissionPacket>[0];
       return buildSubmissionPacket(input, dependencies.repository, dependencies.store);
     }
+    case "doctor.pas.build_claim_submit_bundle": {
+      const input = request.input as Parameters<typeof buildPasClaimSubmitBundle>[0];
+      return buildPasClaimSubmitBundle(input, dependencies);
+    }
+    case "doctor.pas.map_claim_response_to_runtime_receipt": {
+      const input = request.input as Parameters<typeof mapPasClaimResponseToRuntimeReceipt>[0];
+      return mapPasClaimResponseToRuntimeReceipt(input, dependencies);
+    }
     case "doctor.dtr.save_response":
     case "doctor.pas.submit_mock":
+    case "doctor.pas.submit_claim_fhir_mock":
       throw new Error("Guarded tool reached executable path.");
   }
 }

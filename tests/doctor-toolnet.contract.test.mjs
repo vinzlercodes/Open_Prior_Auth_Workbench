@@ -23,10 +23,16 @@ const expectedToolNames = [
   "doctor.case.get_audit_trace",
   "doctor.evidence.list",
   "doctor.requirements.evaluate",
+  "doctor.crd.discover_services",
+  "doctor.crd.invoke_service",
   "doctor.dtr.get_questionnaire_package",
+  "doctor.dtr.get_questionnaire_package_fhir",
   "doctor.pas.build_packet",
+  "doctor.pas.build_claim_submit_bundle",
   "doctor.dtr.save_response",
-  "doctor.pas.submit_mock"
+  "doctor.pas.submit_mock",
+  "doctor.pas.submit_claim_fhir_mock",
+  "doctor.pas.map_claim_response_to_runtime_receipt"
 ];
 
 function sourceFiles(directory) {
@@ -80,6 +86,16 @@ function clone(value) {
   return JSON.parse(JSON.stringify(value));
 }
 
+function readStandardFixture(fileName) {
+  return JSON.parse(
+    readFileSync(resolve(process.cwd(), "data/standards", fileName), "utf8")
+  );
+}
+
+function serviceIdForHook(hook) {
+  return `open-prior-auth-${hook}`;
+}
+
 function setAnswer(response, linkId, answer) {
   const item = response.item.find((candidate) => candidate.linkId === linkId);
   assert.ok(item, `Expected response item ${linkId}`);
@@ -118,7 +134,7 @@ test("M1b registry exposes stable metadata for executable and guarded tools", ()
   const tools = listDoctorTools();
 
   assert.deepEqual(tools.map((tool) => tool.name), expectedToolNames);
-  assert.equal(tools.length, 10);
+  assert.equal(tools.length, 16);
   assert.equal(getDoctorToolDefinition("doctor.case.get").category, "case");
   assert.equal(getDoctorToolDefinition("doctor.case.get").riskLevel, "read");
   assert.equal(getDoctorToolDefinition("doctor.case.get").executable, true);
@@ -127,7 +143,13 @@ test("M1b registry exposes stable metadata for executable and guarded tools", ()
 
   assert.equal(getDoctorToolDefinition("doctor.requirements.evaluate").category, "requirements");
   assert.equal(getDoctorToolDefinition("doctor.requirements.evaluate").riskLevel, "draft");
+  assert.equal(getDoctorToolDefinition("doctor.crd.discover_services").category, "crd");
+  assert.equal(getDoctorToolDefinition("doctor.crd.discover_services").riskLevel, "read");
+  assert.equal(getDoctorToolDefinition("doctor.crd.invoke_service").riskLevel, "draft");
+  assert.equal(getDoctorToolDefinition("doctor.dtr.get_questionnaire_package_fhir").riskLevel, "draft");
   assert.equal(getDoctorToolDefinition("doctor.pas.build_packet").riskLevel, "draft");
+  assert.equal(getDoctorToolDefinition("doctor.pas.build_claim_submit_bundle").riskLevel, "draft");
+  assert.equal(getDoctorToolDefinition("doctor.pas.map_claim_response_to_runtime_receipt").riskLevel, "read");
 
   const saveResponse = getDoctorToolDefinition("doctor.dtr.save_response");
   assert.equal(saveResponse.executable, false);
@@ -140,6 +162,12 @@ test("M1b registry exposes stable metadata for executable and guarded tools", ()
   assert.equal(submitMock.riskLevel, "guarded_submit");
   assert.equal(submitMock.approval.approvalRequired, true);
   assert.equal(submitMock.approval.blockedCode, APPROVAL_EXECUTOR_REQUIRED);
+
+  const submitClaim = getDoctorToolDefinition("doctor.pas.submit_claim_fhir_mock");
+  assert.equal(submitClaim.executable, false);
+  assert.equal(submitClaim.riskLevel, "guarded_submit");
+  assert.equal(submitClaim.approval.approvalRequired, true);
+  assert.equal(submitClaim.approval.blockedCode, APPROVAL_EXECUTOR_REQUIRED);
 });
 
 test("executable tools call prior-auth-core directly over existing adapters", async () => {
@@ -177,6 +205,7 @@ test("executable tools call prior-auth-core directly over existing adapters", as
 
   const packageResult = await execute("doctor.dtr.get_questionnaire_package", { workItemId: workItem.id }, dependencies);
   assert.equal(packageResult.output.workItemId, workItem.id);
+  assert.equal(packageResult.output.questionnaire.resourceType, "Questionnaire");
 
   saveQuestionnaireResponse({
     workItemId: workItem.id,
@@ -191,7 +220,101 @@ test("executable tools call prior-auth-core directly over existing adapters", as
     actorUserId: "toolnet-test-operator"
   }, dependencies);
   assert.equal(packetResult.output.workItemId, workItem.id);
+  assert.equal(packetResult.output.bundle.resourceType, "Bundle");
   assert.equal(store.getWorkItem(workItem.id).status, "packet_ready");
+});
+
+test("standards-shaped CRD tools expose non-conformant services and invoke fixture requests", async () => {
+  const fixture = createFixture();
+  const { dependencies } = fixture;
+
+  const discovery = await execute("doctor.crd.discover_services", {}, dependencies);
+  assert.equal(discovery.ok, true);
+  assert.equal(discovery.output.conformance, false);
+  assert.equal(discovery.output.productionConformance, false);
+  assert.deepEqual(discovery.output.services.map((service) => service.hook), [
+    "order-sign",
+    "appointment-book",
+    "order-dispatch"
+  ]);
+
+  for (const fileName of [
+    "crd-order-sign.request.json",
+    "crd-appointment-book.request.json",
+    "crd-order-dispatch.request.json"
+  ]) {
+    const request = readStandardFixture(fileName);
+    const result = await execute("doctor.crd.invoke_service", {
+      serviceId: serviceIdForHook(request.hook),
+      request
+    }, dependencies);
+    assert.equal(result.ok, true);
+    assert.equal(result.output.conformance, false);
+    assert.equal(result.output.productionConformance, false);
+    assert.equal(result.output.mode, "local-non-conformant");
+    assert.equal(result.output.cards[0].extension.boundary, "crd");
+    assert.equal(result.output.cards[0].extension.requirementEvaluation.evaluationStatus, "requirements_found");
+  }
+});
+
+test("standards-shaped DTR and PAS build tools return FHIR operation-shaped payloads", async () => {
+  const fixture = createFixture();
+  const { dependencies, repository, store, workItem } = fixture;
+
+  const dtr = await execute("doctor.dtr.get_questionnaire_package_fhir", { workItemId: workItem.id }, dependencies);
+  assert.equal(dtr.ok, true);
+  assert.equal(dtr.output.conformance, false);
+  assert.equal(dtr.output.productionConformance, false);
+  assert.equal(dtr.output.operation, "Questionnaire/$questionnaire-package");
+  assert.equal(dtr.output.response.resourceType, "Parameters");
+  const returnBundle = dtr.output.response.parameter.find((parameter) => parameter.name === "return").resource;
+  assert.equal(returnBundle.resourceType, "Bundle");
+  assert.ok(returnBundle.entry.some((entry) => entry.resource.resourceType === "Questionnaire"));
+  assert.ok(returnBundle.entry.some((entry) => entry.resource.resourceType === "QuestionnaireResponse"));
+
+  const localPackage = await execute("doctor.dtr.get_questionnaire_package", { workItemId: workItem.id }, dependencies);
+  saveQuestionnaireResponse({
+    workItemId: workItem.id,
+    questionnaireResponse: completeResponse(clone(localPackage.output.questionnaireResponse)),
+    revision: localPackage.output.session.revision,
+    actorUserId: "toolnet-test-operator",
+    markReadyForReview: true
+  }, repository, store);
+
+  const pas = await execute("doctor.pas.build_claim_submit_bundle", {
+    workItemId: workItem.id,
+    actorUserId: "toolnet-test-operator"
+  }, dependencies);
+  assert.equal(pas.ok, true);
+  assert.equal(pas.output.conformance, false);
+  assert.equal(pas.output.productionConformance, false);
+  assert.equal(pas.output.operation, "Claim/$submit");
+  assert.equal(pas.output.claimSubmitBundle.resourceType, "Bundle");
+  const claim = pas.output.claimSubmitBundle.entry.find((entry) => entry.resource.resourceType === "Claim").resource;
+  assert.equal(claim.use, "preauthorization");
+
+  const mapped = await execute("doctor.pas.map_claim_response_to_runtime_receipt", {
+    packetId: pas.output.packet.id,
+    claimResponseBundle: {
+      resourceType: "Bundle",
+      id: "bundle-claimresponse-test",
+      type: "collection",
+      entry: [
+        {
+          resource: {
+            resourceType: "ClaimResponse",
+            id: "claimresponse-test",
+            preAuthRef: "mock-pas-test",
+            created: "2026-04-25T12:00:00.000Z"
+          }
+        }
+      ]
+    }
+  }, dependencies);
+  assert.equal(mapped.ok, true);
+  assert.equal(mapped.output.receipt.packetId, pas.output.packet.id);
+  assert.equal(mapped.output.receipt.receiptId, "claimresponse-test");
+  assert.equal(mapped.output.receipt.trackingId, "mock-pas-test");
 });
 
 test("guarded tools return deterministic approval error and do not mutate state", async () => {
@@ -224,6 +347,17 @@ test("guarded tools return deterministic approval error and do not mutate state"
   assert.equal(guardedSubmit.ok, false);
   assert.equal(guardedSubmit.error.code, APPROVAL_EXECUTOR_REQUIRED);
   assert.equal(guardedSubmit.record.status, "blocked");
+  assert.deepEqual(store.getSubmissionReceiptsForWorkItem(workItem.id), receiptsBefore);
+
+  const guardedClaimSubmit = await execute("doctor.pas.submit_claim_fhir_mock", {
+    packetId: "packet-not-submitted",
+    actorUserId: "toolnet-test-operator",
+    claimSubmitBundle: readStandardFixture("pas-claim-submit.bundle.json")
+  }, dependencies);
+
+  assert.equal(guardedClaimSubmit.ok, false);
+  assert.equal(guardedClaimSubmit.error.code, APPROVAL_EXECUTOR_REQUIRED);
+  assert.equal(guardedClaimSubmit.record.status, "blocked");
   assert.deepEqual(store.getSubmissionReceiptsForWorkItem(workItem.id), receiptsBefore);
 });
 
