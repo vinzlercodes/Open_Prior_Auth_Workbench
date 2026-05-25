@@ -1,7 +1,7 @@
 # Doctor ToolNet
 
 Doctor ToolNet exposes Prior Auth Core Use Cases as agent-facing tool contracts.
-M1b makes this a real workspace package.
+It keeps runtime/cockpit tools ergonomic and adds standards-shaped sibling tools for CRD, DTR, and PAS boundary work.
 
 ## Public API
 
@@ -18,7 +18,7 @@ Dependencies are concrete ports, not HTTP clients:
 - optional `clock`
 - optional `idGenerator`
 
-## M1b Tools
+## Runtime Tools
 
 Executable read/draft tools:
 
@@ -31,12 +31,25 @@ Executable read/draft tools:
 - `doctor.dtr.get_questionnaire_package`
 - `doctor.pas.build_packet`
 
-Declared guarded tools:
+Guarded runtime tools:
 
 - `doctor.dtr.save_response`
 - `doctor.pas.submit_mock`
 
-Guarded tools return `APPROVAL_EXECUTOR_REQUIRED` until Doctor Runtime adds ApprovalGate.
+## Standards-Shaped Sibling Tools
+
+M6 adds standards-shaped tools that preserve explicit local non-conformance metadata:
+
+- `doctor.crd.discover_services`
+- `doctor.crd.invoke_service`
+- `doctor.dtr.get_questionnaire_package_fhir`
+- `doctor.pas.build_claim_submit_bundle`
+- `doctor.pas.submit_claim_fhir_mock`
+- `doctor.pas.map_claim_response_to_runtime_receipt`
+
+These tools are fixture-backed and local only. They do not claim certified CDS Hooks CRD, Da Vinci DTR, Da Vinci PAS, X12, live payer transport, PHI readiness, or real EHR integration.
+
+Guarded submit tools return `APPROVAL_EXECUTOR_REQUIRED` when called directly through ToolNet. Doctor Runtime ApprovalGate can pause and resume them with human approval.
 
 ## Call Records
 
