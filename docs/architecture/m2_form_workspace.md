@@ -4,7 +4,7 @@
 
 ## Boundary
 
-M2 adds a local DTR-inspired form workspace on top of the M1 requirements sandbox. The implementation keeps the DTR vocabulary visible, but it does not claim conformance to the real FHIR `$questionnaire-package` operation.
+M2 added a local DTR-inspired form workspace on top of the M1 requirements sandbox. The implementation keeps the DTR vocabulary visible, but it does not claim conformance to the real FHIR `$questionnaire-package` operation.
 
 The local package response includes:
 

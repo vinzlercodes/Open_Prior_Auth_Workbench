@@ -24,7 +24,7 @@ FHIR resource mapping must preserve the domain model: `PriorAuthorizationCase` s
 ## Non-Goals
 
 - Do not implement Medplum, HAPI FHIR, cloud storage, or a migration here.
-- Do not replace current fixtures or local SQLite during M9.
+- Do not replace current fixtures or local SQLite as part of the docs-only production path.
 - Do not claim US Core, Da Vinci, SMART, PAS, or payer-specific conformance based on local FHIR-shaped resources.
 
 ## Risks / Blockers

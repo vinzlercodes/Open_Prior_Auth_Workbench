@@ -2,7 +2,7 @@
 
 Provider-side prior authorization Use Case and ports package for Doctor Agent OS.
 
-M1a makes this a real workspace package. HTTP routes in `apps/api` and future ToolNet tools are sibling adapters over these Use Cases.
+M1a made this a real workspace package. HTTP routes in `apps/api` and Doctor ToolNet tools are sibling adapters over these Use Cases.
 
 ## Boundary
 
@@ -11,7 +11,7 @@ M1a makes this a real workspace package. HTTP routes in `apps/api` and future To
 - Exposes ports for clinical context, store, clock, and ID generation.
 - Keeps `PriorAuthorizationCase` as domain root.
 - Keeps `WorkItem` as queue projection.
-- Does not expose agent-callable tools.
+- Does not expose agent-callable tools directly; Doctor ToolNet owns that adapter layer.
 
 ## Exports
 

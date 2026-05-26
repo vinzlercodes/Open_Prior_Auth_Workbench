@@ -33,7 +33,7 @@ Use Cases are the source of truth. HTTP routes and ToolNet tools are sibling ada
 
 ## M1a Boundary
 
-M1a creates the real package manifest/config, adds simple string ID aliases, adds ports, extracts current Use Cases, and keeps current API/UI behavior unchanged.
+M1a created the real package manifest/config, added simple string ID aliases, added ports, extracted current Use Cases, and kept current API/UI behavior unchanged.
 
 Implemented package exports:
 
@@ -42,4 +42,4 @@ Implemented package exports:
 - `PriorAuthorizationCase`, `PriorAuthorizationRequest`, and `PayerDetermination`
 - Use Cases for case read, work item list, requirement evaluation, questionnaire package retrieval, questionnaire response save, evidence list, packet build, mock submit, status timeline, and audit trace
 
-`apps/api` still owns concrete HTTP routes, SQLite/memory stores, and fixture FHIR repository adapters. The package does not import `apps/*`, does not rename DB tables, and does not add ToolNet handlers.
+`apps/api` still owns concrete HTTP routes, SQLite/memory stores, and fixture FHIR repository adapters. The package does not import `apps/*` and does not rename DB tables. Doctor ToolNet owns agent-facing tool handlers over these Use Cases.

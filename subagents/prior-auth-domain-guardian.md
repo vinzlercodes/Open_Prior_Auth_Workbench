@@ -31,7 +31,7 @@ Provide only the bounded context needed for the review:
 ## Workflow
 
 1. Read `CONTEXT.md` and `docs/glossary.md` terms relevant to the task.
-2. Check `docs/roadmap.md` for current milestone and out-of-scope boundaries.
+2. Check `tasks/audit.md` for current implementation status and `docs/roadmap.md` for intended roadmap/out-of-scope boundaries.
 3. Inspect only the files needed for the assigned question.
 4. Identify mismatches in domain language, architecture boundaries, safety
    claims, conformance claims, and package direction.
@@ -52,7 +52,7 @@ Provide only the bounded context needed for the review:
 - Use Cases remain the application action source of truth.
 - HTTP routes and ToolNet tools remain sibling adapters over Use Cases.
 - ToolNet tools do not call internal HTTP routes.
-- MCP does not bypass ToolNet for case-changing actions.
+- If MCP is implemented, it does not bypass ToolNet for case-changing actions.
 - `apps/*` may import `packages/*`; `packages/*` must not import `apps/*`.
 - Safety language stays synthetic-only, non-certified, not PHI-ready, and no live
   EHR or payer connectivity.

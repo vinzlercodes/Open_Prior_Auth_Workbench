@@ -1,31 +1,41 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-This repository is currently document-first. The primary deliverable is [`open_prior_auth_workbench_strategy_report.docx`](./open_prior_auth_workbench_strategy_report.docx) at the repo root. The `doctor/` directory is a local Python 3.14 virtual environment, not application source code. `.idea/` contains editor metadata and should be treated as local-only workspace state.
+This repository is now a TypeScript monorepo plus documentation set for Open Prior Auth Agent Workbench. The main product code lives in `apps/` and `packages/`; the strategy report PDF at the repo root remains a reference artifact, not the only deliverable. The `doctor/` directory is a local Python virtual environment, not application source code. `.idea/` contains editor metadata and should be treated as local-only workspace state.
 
-If code is added later, keep production modules out of `doctor/`; create a dedicated source folder such as `src/` or `app/`, and place tests in `tests/`.
+Keep production modules out of `doctor/`. Application code belongs under `apps/*`; reusable package code belongs under `packages/*`; contract tests belong in `tests/`.
 
 ## Build, Test, and Development Commands
-No build pipeline or automated test suite is checked in yet. Current useful local commands are:
+Use Node `>=22.18.0`. Current useful local commands are:
 
 ```bash
-python3.14 -m venv doctor
-source doctor/bin/activate
-python -m pip list
+npm ci
+npm run db:migrate
+npm test
+npm run typecheck
+npm run build
+npm run evals
 ```
 
-Use the first command only to recreate the local virtual environment. Activate it before running any Python-based document tooling you add. Avoid editing files under `doctor/lib/` directly; reinstall packages instead.
+Local demo commands:
+
+```bash
+npm run dev:api
+npm run dev:web
+```
+
+Use `python3.14 -m venv doctor` only to recreate the disposable local Python environment for document tooling. Avoid editing files under `doctor/lib/` directly; reinstall packages instead.
 
 ## Coding Style & Naming Conventions
 Use Markdown for repository documentation and keep sections short, task-oriented, and scannable. Follow the existing filename pattern of descriptive lowercase snake_case for generated artifacts, for example `prior_auth_summary.docx`.
 
-For future Python code, use 4-space indentation, `snake_case` for functions and modules, and `PascalCase` for classes. No formatter or linter is configured yet, so keep style conservative and consistent.
+For TypeScript, follow the existing workspace style: ESM modules, explicit exported types at package boundaries, and conservative dependency direction (`apps/*` may import `packages/*`; `packages/*` must not import `apps/*`). No formatter or linter is configured yet, so keep style conservative and consistent.
 
 ## Testing Guidelines
-If you introduce Python code, add `pytest` tests under `tests/` and name files `test_<module>.py`. For document changes, verify the `.docx` opens cleanly and that headings, tables, and pagination render as expected before submitting.
+Add or update Node contract tests under `tests/` when behavior changes. Run `npm test`, `npm run typecheck`, `npm run build`, and `npm run evals` before marking meaningful changes complete. For document-only changes, still run the relevant verification unless the change cannot affect code paths.
 
 ## Commit & Pull Request Guidelines
-If the project is initialized as a Git repo, use short imperative commit messages such as `docs: update prior auth report` or `test: add report validation checks`.
+Use short imperative commit messages such as `docs: update current status` or `test: add report validation checks`.
 
 Pull requests should include a brief summary, the files changed, and screenshots or exported previews when document layout changes materially.
 

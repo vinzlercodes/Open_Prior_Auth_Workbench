@@ -23,8 +23,8 @@ The provider-side domain model must stay stable across external workflows: Requi
 
 ## Non-Goals
 
-- Do not implement SMART launch, EHR API clients, payer transport, X12 mapping, or endpoint onboarding in M9.
-- Do not replace local standards aliases with production endpoints in M9.
+- Do not implement SMART launch, EHR API clients, payer transport, X12 mapping, or endpoint onboarding as part of the docs-only production path.
+- Do not replace local standards aliases with production endpoints as part of the docs-only production path.
 - Do not claim production EHR connectivity, production payer exchange, or Da Vinci certification.
 
 ## Risks / Blockers

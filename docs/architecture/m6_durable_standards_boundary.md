@@ -65,7 +65,7 @@ npm run demo:seed
 
 ## Verification
 
-M6 adds contract coverage for SQLite parity, restart survival, idempotent packet and receipt persistence, adapter behavior, and transaction rollback. The required verification remains:
+M6 added contract coverage for SQLite parity, restart survival, idempotent packet and receipt persistence, adapter behavior, and transaction rollback. The required verification remains:
 
 ```bash
 npm test

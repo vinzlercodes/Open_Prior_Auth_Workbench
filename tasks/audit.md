@@ -6,9 +6,9 @@ Primary source: `open_prior_auth_workbench_strategy_report.pdf`, especially sect
 
 ## Executive Finding
 
-The repository is ahead of several stale docs and todo entries. The current codebase implements much of the report's synthetic open-source agentic target: Prior Auth Core, Doctor ToolNet, Doctor Runtime with ApprovalGate, deterministic prior-auth agent team, Agent Cockpit, standards-shaped gateway routes, Doctor Evals, and production-path documentation.
+The repository had drifted ahead of several stale docs and todo entries. The current codebase implements much of the report's synthetic open-source agentic target: Prior Auth Core, Doctor ToolNet, Doctor Runtime with ApprovalGate, deterministic prior-auth agent team, Agent Cockpit, standards-shaped gateway routes, Doctor Evals, and production-path documentation.
 
-The project still correctly does not meet the production implementation north star. It remains synthetic-only, local-first, non-certified, not PHI-ready, and disconnected from live EHR and payer systems. The biggest current gap is not core implementation velocity; it is status/documentation drift.
+The project still correctly does not meet the production implementation north star. It remains synthetic-only, local-first, non-certified, not PHI-ready, and disconnected from live EHR and payer systems. The biggest implementation gap is Doctor MCP; the biggest documentation risk was status drift.
 
 ## PDF North-Star Summary
 
@@ -49,12 +49,9 @@ The report says to build now: MRI prior-auth vertical slice, custom runtime, too
 
 ## Documentation Drift Findings
 
-- `AGENTS.md` still describes a document-first repo with no checked-in build pipeline/test suite, but the repo now has TypeScript workspaces, API/web apps, packages, contract tests, CI, evals, and build/typecheck scripts.
-- `README.md` still says the runnable baseline is M1-M7 and calls `packages/doctor-evals` README-only/planned, while `packages/doctor-evals` is a real package and demo docs describe M1-M8.
-- `docs/architecture/doctor-agent-os.md` still says no runtime, ToolNet, MCP server, or eval package exists; runtime, ToolNet, and eval package now exist.
-- `docs/architecture/strategy_report_implementation_audit.md` is dated May 22 and describes M0 reset only; it is stale against current package/code state.
-- `docs/roadmap.md` still frames itself as the M0 source of truth and says production-path docs are future/M9, while `docs/production-path/` now exists.
+- Resolved in the documentation sync pass: `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`, `docs/roadmap.md`, `docs/architecture/doctor-agent-os.md`, `docs/architecture/strategy_report_implementation_audit.md`, `docs/architecture/mcp.md`, `docs/demo/agentic-story-flow.md`, `packages/doctor-mcp/README.md`, and `infra/compose/README.md` now describe the current implementation status.
 - Previous `tasks/todo.md` mixed active todo, milestone history, old audits, and stale open items; it has been reset to active work only.
+- Historical archive docs under `docs/architecture/archive/` intentionally remain unchanged as archived point-in-time records.
 
 ## Safety And Conformance Boundary
 

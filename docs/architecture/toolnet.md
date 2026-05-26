@@ -1,6 +1,6 @@
 # Doctor ToolNet
 
-Doctor ToolNet is the agent-facing tool adapter over Use Cases. M1b makes `packages/doctor-toolnet` a real workspace package over `prior-auth-core`.
+Doctor ToolNet is the agent-facing tool adapter over Use Cases. `packages/doctor-toolnet` is a real workspace package over `prior-auth-core`.
 
 ## Purpose
 
@@ -32,18 +32,18 @@ Executable read/draft tools call Prior Auth Core directly:
 - `doctor.dtr.get_questionnaire_package`
 - `doctor.pas.build_packet`
 
-Declared but non-executable guarded tools:
+Guarded case-changing tools:
 
 - `doctor.dtr.save_response`
 - `doctor.pas.submit_mock`
 
-Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED` until Doctor Runtime adds ApprovalGate in M2. They are visible contracts, not executable case-changing actions.
+Guarded tools return deterministic `APPROVAL_EXECUTOR_REQUIRED` when called directly through ToolNet. Doctor Runtime ApprovalGate can pause, approve/reject, and execute them with trace records.
 
 Each call returns a traceable call record with call id, tool name, category, risk level, approval flag, status, timestamps, input, and output or error.
 
 ## Non-Goals
 
-- No approval executor in M1b.
-- No MCP exposure in M1b.
+- No ToolNet-owned approval executor; ApprovalGate belongs to Doctor Runtime.
+- No MCP exposure yet.
 - No live payer submission.
 - No case-changing tool execution before ApprovalGate.

@@ -29,8 +29,8 @@ the repository's current prior authorization scope.
   must not import `apps/*`.
 - Treat Use Cases as the source of truth for application actions.
 - ToolNet tools call Use Cases directly; they do not call internal HTTP routes.
-- MCP exposes selected ToolNet tools; it does not bypass ToolNet for
-  case-changing actions.
+- When MCP is implemented, it should expose selected ToolNet tools and must not
+  bypass ToolNet for case-changing actions.
 - Keep edits minimal and verify before claiming done.
 
 ## Role Files
