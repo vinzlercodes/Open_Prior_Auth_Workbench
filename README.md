@@ -1,8 +1,8 @@
 # Open Prior Auth Agent Workbench
 
-Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the planned Doctor Agent OS substrate. The current runnable baseline remains the M1-M7 Open Prior Auth Workbench: local MRI lumbar spine and DME power wheelchair flows for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, and more-info loops.
+Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the Doctor Agent OS substrate. The current runnable baseline covers M1-M8 plus M9 production-path documentation: local MRI lumbar spine and DME power wheelchair flows for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, more-info loops, deterministic agent runs, approval gates, standards-shaped local gateway routes, and formal deterministic evals.
 
-Doctor Agent OS is the implementation platform direction for reusable agent runtime, ToolNet tools, MCP exposure, approvals, traces, and evaluations. It is not a broader committed business domain. The first and only committed app/domain is provider-side prior authorization.
+Doctor Agent OS is the implementation platform direction for reusable agent runtime, ToolNet tools, approvals, traces, and evaluations. MCP remains the next unimplemented interoperability boundary. Doctor Agent OS is not a broader committed business domain. The first and only committed app/domain is provider-side prior authorization.
 
 ## Quickstart
 
@@ -47,6 +47,8 @@ npm run demo:seed
 - M5: Agent Cockpit where prior-auth case state is primary and deterministic agent trace is visible as a trust/debug layer.
 - M6: SQLite-backed local persistence, transaction boundaries, DB scripts, and local standards-shaped adapter boundaries.
 - M7: synthetic supporting information, DocumentReference/Binary-like packet entries, fixture DTR dependencies, standards-shaped non-conformant aliases, and SQLite evidence metadata.
+- M8: deterministic Doctor Evals for golden traces, ToolNet policy, ApprovalGate behavior, prompt-injection-as-data checks, and safety claim checks.
+- M9: production-path documentation for FHIR data plane, security/authz/audit, EHR/payer integration, deployment/observability, and conformance testing.
 
 ## Safety And Conformance Boundaries
 
@@ -54,7 +56,7 @@ This repository is synthetic-only, standards-shaped, non-certified, not PHI-read
 
 It does not implement production SMART App Launch, CDS Hooks CRD, FHIR `$questionnaire-package`, Da Vinci DTR, Da Vinci PAS `$submit`, X12 278, payer endpoint discovery, production payer transport, payer adjudication, production-grade durable persistence, real FHIR persistence, or real EHR integration.
 
-The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoints are PAS-style local product endpoints. The M7 standards-shaped aliases return explicit non-conformance metadata and exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
+The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoints are PAS-style local product endpoints. The standards-shaped gateway routes and aliases return explicit non-conformance metadata and exist to mark replacement boundaries, not to claim SMART, CRD, DTR, or PAS compatibility.
 
 ## Repository Map
 
@@ -64,13 +66,14 @@ The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoi
 - `packages/prior-auth-core/`: provider-side prior-auth Use Cases and ports.
 - `packages/doctor-toolnet/`: agent/tool adapter over Prior Auth Core.
 - `packages/doctor-runtime/`: workflow-agnostic run/task/tool/approval/trace runtime with SQLite persistence.
-- `packages/doctor-mcp/`, `packages/doctor-evals/`: README-only placeholders for planned MCP and eval package boundaries.
+- `packages/doctor-mcp/`: README-only placeholder for the planned MCP boundary over ToolNet.
+- `packages/doctor-evals/`: deterministic regression and safety harness for local synthetic agent runs.
 - `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, questionnaires, evidence fixtures, and standards-shaped payload fixtures.
 - `docs/`: Roadmap, glossary, architecture notes, conformance matrix, and demo story docs.
 - `demo/`: Step-by-step demo guide and deterministic screenshot artifacts.
 - `examples/automations/`: Docs-only automation recipes that call existing local APIs.
 - `infra/compose/`: Lightweight compose notes for local API/web services.
-- `tests/`: Contract tests for current M1-M7 behavior.
+- `tests/`: Contract tests for current M1-M8 behavior, standards-shaped gateway routes, package boundaries, runtime approvals, cockpit responses, and eval assertions.
 
 Package direction is intentional: `apps/*` may import `packages/*`; `packages/*` must not import `apps/*`.
 

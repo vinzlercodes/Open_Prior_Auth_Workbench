@@ -21,7 +21,7 @@ Observability must connect business events and technical signals: case lifecycle
 
 ## Non-Goals
 
-- Do not implement OpenTelemetry, Langfuse, Kubernetes, cloud databases, object storage, or deployment manifests in M9.
+- Do not implement OpenTelemetry, Langfuse, Kubernetes, cloud databases, object storage, or deployment manifests as part of the docs-only production path.
 - Do not claim readiness for production deployment from local build/test success.
 - Do not store PHI or credentials in local demo paths such as `.data/`.
 

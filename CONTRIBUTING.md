@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Open Prior Auth Workbench. This repo is a synthetic-data-only developer sandbox, so contributions should keep the product easy to run locally and safe for external builders to inspect.
+Thanks for helping improve Open Prior Auth Agent Workbench. This repo is a synthetic-data-only Doctor Agent OS reference system for provider-side prior authorization, so contributions should keep the product easy to run locally and safe for external builders to inspect.
 
 ## Local Setup
 
@@ -32,6 +32,7 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - Do not add production payer credentials, EHR URLs, secrets, or customer-specific endpoints.
 - Update `README.md`, `demo/README.md`, `data/README.md`, or architecture notes when behavior or fixtures change.
 - Add or update contract tests when API behavior changes.
+- Update Doctor Evals scenarios, golden traces, or policy assertions when agent/tool behavior changes.
 - Keep generated build outputs out of the repo.
 
 ## Pull Request Checklist
@@ -39,9 +40,10 @@ The API defaults to `http://localhost:4000`. The web app defaults to `http://loc
 - `npm test` passes.
 - `npm run typecheck` passes.
 - `npm run build` passes.
-- Docs describe any new route, fixture, or demo step.
+- `npm run evals` passes when runtime, ToolNet, agent, evidence, packet, or safety-claim behavior changes.
+- Docs describe any new route, tool, fixture, eval scenario, or demo step.
 - Screenshots are updated when the visible demo workflow materially changes.
-- The PR summary calls out whether the change affects M1, M2, M3, M4, or M5.
+- The PR summary calls out affected surfaces: Prior Auth Core, ToolNet, Runtime, Agent Cockpit, standards gateway, Doctor Evals, docs, or production-path docs.
 
 ## Data Safety
 

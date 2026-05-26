@@ -10,7 +10,7 @@ The conformance matrix is intentionally labeled as standards-shaped and non-conf
 
 Production needs a version-pinned conformance strategy for each target implementation guide and partner workflow. The test path must include official FHIR validation where applicable, IG package versions, positive and negative cases, partner sandbox tests, security tests, operational tests, and clear language distinguishing internal readiness from certification.
 
-The likely version targets at M9 planning time are SMART App Launch v2.2.0, Da Vinci CRD v2.2.1, DTR v2.2.0, PAS v2.2.1, FHIR R4/R4B, and CMS-0057-F prior authorization API expectations. These must be rechecked before execution.
+The likely version targets captured for the production path are SMART App Launch v2.2.0, Da Vinci CRD v2.2.1, DTR v2.2.0, PAS v2.2.1, FHIR R4/R4B, and CMS-0057-F prior authorization API expectations. These must be rechecked before execution.
 
 ## Adapters / Interfaces To Build
 
@@ -23,7 +23,7 @@ The likely version targets at M9 planning time are SMART App Launch v2.2.0, Da V
 ## Non-Goals
 
 - Do not claim certification, official validation, or production interoperability from current tests.
-- Do not add external validator tooling, partner sandbox calls, or CI changes in M9.
+- Do not add external validator tooling, partner sandbox calls, or CI changes as part of the docs-only production path.
 - Do not treat synthetic fixture success as legal, regulatory, payer, or EHR acceptance.
 
 ## Risks / Blockers

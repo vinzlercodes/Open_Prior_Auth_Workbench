@@ -4,9 +4,9 @@
 
 ## Boundary
 
-M7 adds local synthetic evidence attachments, FHIR-shaped DocumentReference/Binary packet entries, fixture-based DTR dependencies, and standards-shaped route aliases. It remains a local developer sandbox. It does not implement real FHIR persistence, Da Vinci conformance, production SMART App Launch, production PAS, X12 278, payer endpoint discovery, or real payer transport.
+M7 added local synthetic evidence attachments, FHIR-shaped DocumentReference/Binary packet entries, fixture-based DTR dependencies, and standards-shaped route aliases. It remains a local developer sandbox. It does not implement real FHIR persistence, Da Vinci conformance, production SMART App Launch, production PAS, X12 278, payer endpoint discovery, or real payer transport.
 
-M8 is the earliest milestone for full CQL behavior, full Bundle-like evidence package product support, real FHIR persistence, Da Vinci conformance, and production SMART/PAS behavior.
+Full CQL behavior, full Bundle-like evidence package product support, real FHIR persistence, Da Vinci conformance, and production SMART/PAS behavior remain outside the local synthetic implementation and are covered only as production-path requirements.
 
 ## Evidence Model
 
@@ -29,7 +29,7 @@ M7 models four content modes but limits product support deliberately:
 - Tiny inline base64 fixture content is implemented for small checked-in examples.
 - Local Binary-like resources are the main fixture path.
 - Local referenced locations are implemented for JSON/base64 uploads written to the local upload directory.
-- Bundle-like evidence packages are represented by one smoke-test fixture only. Full product support is deferred to M8.
+- Bundle-like evidence packages are represented by one smoke-test fixture only. Full product support remains deferred to a future production/data-plane effort.
 
 Upload validation rejects unsupported MIME types, oversized decoded payloads, malformed base64, missing filenames, and checksum mismatches.
 
@@ -49,7 +49,7 @@ M7 includes a constrained fixture-expression evaluator for named expressions use
 
 ## Standards Aliases
 
-M7 adds standards-shaped aliases for SMART, CRD, DTR, PAS, and evidence boundary discovery. All aliases return `conformance: false` or equivalent metadata and are labeled `local-non-conformant`.
+M7 added standards-shaped aliases for SMART, CRD, DTR, PAS, and evidence boundary discovery. All aliases return `conformance: false` or equivalent metadata and are labeled `local-non-conformant`.
 
 The aliases are intended to make future replacement boundaries explicit, not to claim standards conformance.
 

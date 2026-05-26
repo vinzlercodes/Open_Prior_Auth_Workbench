@@ -1,13 +1,13 @@
 # Doctor Agent OS Roadmap
 
-This roadmap is the M0 source of truth for aligning the repository around Doctor Agent OS while preserving the current M1-M7 synthetic Open Prior Auth Agent Workbench baseline.
+This roadmap records the implemented M0-M9 path and remaining direction for Doctor Agent OS while preserving the current synthetic Open Prior Auth Agent Workbench baseline.
 
 ## Canonical Direction
 
 - Domain: provider-side prior authorization.
 - Implementation substrate: Doctor Agent OS.
 - First app: Open Prior Auth Agent Workbench.
-- Current baseline: existing M1-M7 synthetic prior-auth workbench remains runnable baseline.
+- Current baseline: M1-M8 synthetic prior-auth workbench plus M9 production-path documentation.
 - Near-term rule: deepen prior-auth first; broader healthcare administrative workflows are future expansion only.
 - Production posture: synthetic-only, standards-shaped, non-certified, not PHI-ready, not connected to live EHRs or payers.
 
@@ -25,15 +25,17 @@ This roadmap is the M0 source of truth for aligning the repository around Doctor
 - Use Cases are the source of truth for application actions.
 - HTTP routes and ToolNet tools are sibling adapters over Use Cases.
 - ToolNet tools must not call internal HTTP routes.
-- MCP exposes selected ToolNet tools and does not bypass ToolNet for case-changing actions.
+- When MCP is implemented, it should expose selected ToolNet tools and must not bypass ToolNet for case-changing actions.
 - `apps/*` may import `packages/*`; `packages/*` must not import `apps/*`.
-- M0 has no ADRs. Revisit ADRs after M1a/M1b enforce package and import boundaries.
+- No ADRs were added in M0. Revisit ADRs only when a new decision is hard to reverse, surprising, and trade-off driven.
 
 ## M0: Agentic Alignment + Repo Reset
 
-Goal: align public docs, roadmap, glossary, audit, and package map around Doctor Agent OS as substrate while preserving current M1-M7 baseline.
+Status: complete.
 
-Scope: refresh README, create roadmap/glossary/architecture/conformance/demo docs, add README-only package placeholders, add pre-agentic banners to M1-M7 docs, archive stale audit, create current audit, and update task tracking.
+Goal: align public docs, roadmap, glossary, audit, and package map around Doctor Agent OS as substrate while preserving the prior M1-M7 baseline.
+
+Scope: refresh README, create roadmap/glossary/architecture/conformance/demo docs, add initial package placeholders, add pre-agentic banners to M1-M7 docs, archive stale audit, create current audit, and update task tracking.
 
 Out of scope: ADRs, code extraction, ToolNet implementation, MCP implementation, runtime implementation, UI redesign, production-path docs, database migrations, and root package rename.
 
@@ -42,6 +44,8 @@ Exit criteria: README, roadmap, glossary, architecture docs, package READMEs, au
 Files/packages affected: `README.md`, `docs/`, `packages/*/README.md`, `tasks/todo.md`.
 
 ## M1a: Extract Prior Auth Core
+
+Status: complete.
 
 Goal: create `packages/prior-auth-core` as the provider-side prior-auth Use Case and ports package.
 
@@ -55,6 +59,8 @@ Files/packages affected: `packages/prior-auth-core`, `apps/api`, `packages/share
 
 ## M1b: Doctor ToolNet Foundation
 
+Status: complete.
+
 Goal: add ToolNet as the agent/tool adapter over `prior-auth-core`, with executable read/draft tools only.
 
 Scope: create a real package, add registry/metadata/schemas/risk/approval metadata/call record shape, implement read/draft tools, and declare guarded write/submit tools as non-executable.
@@ -66,6 +72,8 @@ Exit criteria: tools can inspect, reason, draft, and preview prior-auth work; gu
 Files/packages affected: `packages/doctor-toolnet`, `packages/prior-auth-core`, `tests`.
 
 ## M2: Doctor Runtime + ApprovalGate
+
+Status: complete.
 
 Goal: add minimal workflow-agnostic runtime lifecycle, approval pause/resume, and durable trace state.
 
@@ -79,6 +87,8 @@ Files/packages affected: `packages/doctor-runtime`, `packages/doctor-toolnet`, `
 
 ## M3: Deterministic Prior-Auth Agent Team
 
+Status: complete.
+
 Goal: implement replayable scripted prior-auth agent team over Runtime + ToolNet.
 
 Scope: add deterministic orchestrator, requirement discovery, documentation, evidence, packet assembly, and compliance boundary roles; support MRI happy path from queue to approval request; add minimal golden trace smoke test.
@@ -90,6 +100,8 @@ Exit criteria: no live LLM required for happy path; trace contains ordered agent
 Files/packages affected: `packages/doctor-runtime`, `packages/doctor-toolnet`, `packages/prior-auth-core`, `tests`.
 
 ## M4: Reusable Prior-Auth Domain Proof
+
+Status: complete.
 
 Goal: prove the same core/runtime/tool path supports a second payer/service-line scenario.
 
@@ -103,6 +115,8 @@ Files/packages affected: `data`, `packages/prior-auth-core`, `packages/doctor-to
 
 ## M5: Agent Cockpit
 
+Status: complete.
+
 Goal: build prior-auth cockpit where business case state is primary and agent trace is visible trust/debug layer.
 
 Scope: one page supports MRI and DME scenarios with case header, current blocker/next action, agent run timeline, evidence-to-requirement board, questionnaire/packet summary, packet preview, audit/status timeline, and scenario switcher.
@@ -114,6 +128,8 @@ Exit criteria: staff can operate from case state first; trace explains agent wor
 Files/packages affected: `apps/web`, `apps/api`, shared contracts, demo docs/screenshots, tests.
 
 ## M6: Standards-Shaped ToolNet Tools
+
+Status: complete.
 
 Goal: make internal ToolNet/core actions standards-shaped before exposing protocol routes.
 
@@ -127,6 +143,8 @@ Files/packages affected: `packages/doctor-toolnet`, `packages/prior-auth-core`, 
 
 ## M7: Standards Gateway HTTP Routes + Tests
 
+Status: complete.
+
 Goal: expose standards-shaped HTTP adapters over ToolNet/core and validate via fixture tests.
 
 Scope: add SMART discovery, CDS services, CRD invocation, FHIR `Questionnaire/$questionnaire-package`, FHIR `Claim/$submit`, OperationOutcome-style errors, and conformance matrix fixture tests.
@@ -138,6 +156,8 @@ Exit criteria: standards gateway routes are explicit adapters, conformance matri
 Files/packages affected: `apps/api`, `packages/doctor-toolnet`, `data/standards`, `docs/standards`, `tests`.
 
 ## M8: Formal Doctor Evals
+
+Status: complete.
 
 Goal: add narrow deterministic regression/safety harness, not eval platform.
 
@@ -151,6 +171,8 @@ Files/packages affected: `packages/doctor-evals`, `packages/doctor-runtime`, `pa
 
 ## M9: Production-Path Docs
 
+Status: complete as documentation only.
+
 Goal: document production path without implementing production system.
 
 Scope: create `docs/production-path/` with docs for FHIR data plane, security/authz/audit, EHR/payer integration, deployment/observability, and conformance test path.
@@ -159,4 +181,10 @@ Out of scope: Medplum/HAPI implementation, Keycloak/OpenFGA implementation, real
 
 Exit criteria: each doc states current OSS posture, production requirement, adapter/interface to build, non-goals, risks/blockers, and sequence prerequisites.
 
-Files/packages affected: `docs/production-path/` only when M9 begins. M0 intentionally does not create this directory.
+Files/packages affected: `docs/production-path/`.
+
+## Remaining Direction
+
+- Implement Doctor MCP as the external agent interoperability boundary over selected ToolNet tools, resources, and prompts.
+- Keep production work docs-only until security, data plane, payer/EHR integration, deployment, observability, and conformance prerequisites are intentionally funded and scoped.
+- Keep all current runtime, standards, and eval claims synthetic-only, local-first, non-certified, and non-PHI-ready.

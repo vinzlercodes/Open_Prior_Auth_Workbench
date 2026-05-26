@@ -4,7 +4,7 @@
 
 ## Boundary
 
-M3 adds a PAS-style local packet builder and mock transport on top of the M1 requirements sandbox and M2 form workspace. It preserves PAS vocabulary and the mental model of one request Bundle returning one response Bundle, but it does not implement Da Vinci PAS `$submit`, X12 278, payer authentication, endpoint discovery, or real payer decisions.
+M3 added a PAS-style local packet builder and mock transport on top of the M1 requirements sandbox and M2 form workspace. It preserves PAS vocabulary and the mental model of one request Bundle returning one response Bundle, but it does not implement Da Vinci PAS `$submit`, X12 278, payer authentication, endpoint discovery, or real payer decisions.
 
 The local packet includes:
 

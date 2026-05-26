@@ -1,16 +1,16 @@
-# Demo Guide: M1 to M8 Open Prior Auth Workbench
+# Demo Guide: Open Prior Auth Agent Workbench
 
-This guide walks through every demo piece from M1 through M8 using only synthetic prior authorization data. The current app runs the full M4 workbench for MRI lumbar spine / Acme Health and DME power wheelchair / Blue Ridge Health, M5 adds OSS-facing documentation, CI, fixture indexing, automation recipes, and deterministic screenshots for external builders, M6 makes local case state survive API restarts through SQLite, M7 adds local evidence attachments and DTR dependency fixtures, and M8 adds formal deterministic evals. Each milestone remains visible as a separate part of the flow:
+This guide walks through the synthetic prior authorization demo path. The current app includes Prior Auth Core, Doctor ToolNet, Doctor Runtime with ApprovalGate, deterministic agent team, case-first Agent Cockpit, standards-shaped ToolNet tools, local standards gateway routes, and formal deterministic evals. Each milestone remains visible as a separate part of the flow:
 
 - M1: fixture-backed launch context, requirement discovery, and explicit work-item creation.
 - M2: local DTR-inspired questionnaire package, prefilled form workspace, validation, and review-ready handoff.
 - M3: PAS-style local packet builder, mock PAS submission, status timeline, and audit trail.
 - M4: reusable prior-auth proof, operations queue, filters, metrics, payer updates, more-info loop, structured denial, and terminal outcomes.
-- M5: builder-ready docs, fixture index, CI, environment example, sample automations, and reproducible screenshots.
-- M6: SQLite-backed local case state, explicit transaction boundaries, and local standards-shaped launch/CRD/DTR/PAS adapters.
-- M7: synthetic evidence attachments, DocumentReference/Binary-like packet entries, fixture Library/ValueSet dependencies, and standards gateway routes with explicit non-conformance metadata.
+- M5: case-first Agent Cockpit with scenario switching, agent trace, evidence board, packet preview, approvals, and status/audit panels.
+- M6: standards-shaped Doctor ToolNet tools for local CRD, DTR, and PAS boundary payloads.
+- M7: local standards gateway HTTP routes and aliases with explicit non-conformance metadata.
 - M8: deterministic doctor evals for golden traces, ToolNet policy, ApprovalGate, and safety claims.
-- Doctor Runtime M3: deterministic prior-auth agent team over Runtime + ToolNet, ending at guarded submit approval.
+- Supporting baseline: SQLite-backed local case state, synthetic evidence attachments, fixture DTR dependencies, OSS docs, CI, fixture indexing, automation recipes, and deterministic screenshots.
 
 No real PHI is required or expected.
 
@@ -86,9 +86,9 @@ http://localhost:3000
 
 The API defaults to `http://127.0.0.1:4000`. The API store is SQLite-backed at `.data/open-prior-auth.sqlite`; use `OPEN_PRIOR_AUTH_DB_PATH` to point at another local database file. M7 uploads write synthetic evidence bytes to `.data/evidence-uploads/`; use `OPEN_PRIOR_AUTH_EVIDENCE_UPLOAD_DIR` to point at another ignored local directory. Restarting `npm run dev:api` preserves work items, questionnaire sessions, packets, receipts, evidence metadata, status events, operations history, and audit events. Use `npm run db:reset` when you want a clean demo state.
 
-## M6: Restart Survival Check
+## Local SQLite Restart Survival Check
 
-M6 proves the local durable case core:
+The local durable case core proves:
 
 1. Run `npm run db:reset`.
 2. Run `npm run dev:api`.
@@ -99,7 +99,7 @@ M6 proves the local durable case core:
 
 JSON remains the fixture and demo snapshot format. SQLite is the runtime source of truth for local case state.
 
-## M7: Evidence Attachments And Standards Aliases
+## Evidence Attachments And Standards Gateway Aliases
 
 After creating a work item and opening the form workspace:
 
@@ -598,9 +598,9 @@ Expected checks:
 - Approved, denied, and cancelled cases are terminal.
 - Denied updates require structured `code`, `display`, and `detail` reason fields.
 
-## M5: OSS Polish Artifacts
+## OSS Polish Artifacts
 
-M5 proves that an external builder can understand, run, verify, and extend the project without private context. It does not change the runtime behavior from M4.
+These artifacts help external builders understand, run, verify, and extend the synthetic local project.
 
 ### M5 Docs To Review
 
@@ -647,9 +647,10 @@ npm run build
 
 Expected results:
 
-- `npm test`: M1 through M6 contract tests pass.
-- `npm run typecheck`: API, web, and shared-type packages typecheck.
-- `npm run build`: API, web, and shared-type packages build.
+- `npm test`: M1 through M8 contract tests pass, including runtime, ToolNet, standards gateway, cockpit, and eval coverage.
+- `npm run typecheck`: all configured workspaces typecheck.
+- `npm run build`: all configured workspaces build.
+- `npm run evals`: deterministic eval scenarios and assertions pass.
 - Queue rows derive `effectiveStatus` exactly from latest payer update plus internal work-item status.
 - Payer decisions include `submittedAt`, `decidedAt`, and `decisionTimeMs`.
 - Stale packets are rejected after QuestionnaireResponse revision changes.

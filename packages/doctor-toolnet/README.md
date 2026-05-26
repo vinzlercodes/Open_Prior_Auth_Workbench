@@ -38,7 +38,7 @@ Guarded runtime tools:
 
 ## Standards-Shaped Sibling Tools
 
-M6 adds standards-shaped tools that preserve explicit local non-conformance metadata:
+M6 added standards-shaped tools that preserve explicit local non-conformance metadata:
 
 - `doctor.crd.discover_services`
 - `doctor.crd.invoke_service`
@@ -73,4 +73,4 @@ Boundary rules:
 - does not call internal HTTP routes
 - does not fetch local servers
 - does not import `apps/*`
-- keeps guarded write/submit tools non-executable until ApprovalGate exists
+- keeps guarded write/submit tools non-executable outside Doctor Runtime ApprovalGate

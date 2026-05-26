@@ -1,6 +1,6 @@
 # M6 Standards-Shaped ToolNet Tools
 
-M6 adds standards-shaped sibling tools in Doctor ToolNet while preserving existing runtime and cockpit payloads.
+M6 added standards-shaped sibling tools in Doctor ToolNet while preserving existing runtime and cockpit payloads.
 
 ## What Changed
 

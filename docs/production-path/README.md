@@ -1,6 +1,6 @@
 # Production Path
 
-M9 documents what must change before this repository could move from a synthetic local workbench toward a production prior authorization system. It does not implement that system.
+M9 documented what must change before this repository could move from a synthetic local workbench toward a production prior authorization system. It does not implement that system.
 
 Current official references:
 

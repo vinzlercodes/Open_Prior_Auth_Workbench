@@ -13,9 +13,9 @@ This matrix documents current standards-shaped boundaries. It does not claim cer
 
 ## Roadmap Landing Points
 
-- M6 adds standards-shaped ToolNet tools before protocol routes.
-- M7 adds standards gateway HTTP routes and fixture conformance tests.
-- M9 documents the production-path requirements for real SMART, CRD, DTR, PAS, security, EHR/payer integration, deployment, observability, and conformance testing.
+- M6 added standards-shaped ToolNet tools before protocol routes.
+- M7 added standards gateway HTTP routes and fixture conformance tests.
+- M9 documented the production-path requirements for real SMART, CRD, DTR, PAS, security, EHR/payer integration, deployment, observability, and conformance testing.
 
 ## Safety Language
 
