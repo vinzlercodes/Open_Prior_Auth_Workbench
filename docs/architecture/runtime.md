@@ -14,7 +14,7 @@ Doctor Runtime is the workflow-agnostic runtime package for agent runs, tasks, a
 
 ## Persistence
 
-M2 adds SQLite runtime tables:
+M2 added SQLite runtime tables:
 
 - `agent_runs`
 - `agent_tasks`
@@ -30,7 +30,7 @@ Guarded ToolNet write/submit tools pause the run and create approval requests. A
 
 ## M3 Deterministic Prior-Auth Agent Team
 
-M3 adds a replayable scripted prior-auth agent team inside `packages/doctor-runtime`. The team has deterministic role classes for orchestration, requirement discovery, documentation, evidence review, packet assembly, and compliance boundary checks.
+M3 added a replayable scripted prior-auth agent team inside `packages/doctor-runtime`. The team has deterministic role classes for orchestration, requirement discovery, documentation, evidence review, packet assembly, and compliance boundary checks.
 
 The MRI and DME happy paths run over Runtime + ToolNet only:
 
@@ -44,7 +44,7 @@ The MRI and DME happy paths run over Runtime + ToolNet only:
 8. Build the PAS-style packet preview.
 9. Request guarded mock submit approval and stop at `waiting_for_human`.
 
-The final submit is not auto-approved in M3/M4. This preserves ApprovalGate as the compliance boundary while still proving the deterministic team can create a packet preview without a live LLM. M4 adds DME Power Wheelchair Authorization / Blue Ridge Health through the same ordered path, with no DME-specific orchestrator.
+The final submit is not auto-approved in the deterministic agent path. This preserves ApprovalGate as the compliance boundary while still proving the team can create a packet preview without a live LLM. M4 added DME Power Wheelchair Authorization / Blue Ridge Health through the same ordered path, with no DME-specific orchestrator.
 
 ## Non-Goals
 

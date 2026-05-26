@@ -1,10 +1,10 @@
 # Doctor Agent OS
 
-Doctor Agent OS is the planned implementation substrate for agentic healthcare administrative workflow software. In this repository, it is scoped to the Open Prior Auth Agent Workbench and must not be described as a broader committed product domain.
+Doctor Agent OS is the implementation substrate for agentic healthcare administrative workflow software. In this repository, it is scoped to the Open Prior Auth Agent Workbench and must not be described as a broader committed product domain.
 
 ## Current State
 
-M0 is documentation and scaffold alignment only. The current runnable product remains the M1-M7 synthetic prior authorization workbench. No Doctor Agent OS runtime, ToolNet implementation, MCP server, or eval package exists yet.
+The current runnable product includes the M1-M8 synthetic prior authorization workbench plus M9 production-path documentation. Prior Auth Core, Doctor ToolNet, Doctor Runtime with ApprovalGate, deterministic prior-auth agent team, Agent Cockpit, standards-shaped gateway routes, and Doctor Evals exist. Doctor MCP remains a README-only placeholder and is the main unimplemented Doctor Agent OS boundary.
 
 ## Target Responsibilities
 
@@ -12,8 +12,8 @@ M0 is documentation and scaffold alignment only. The current runnable product re
 - Expose Use Cases through ToolNet tools with schemas, risk metadata, approval metadata, and call records.
 - Gate write/submit actions through ApprovalGate.
 - Persist ordered traces for debugging, replay, and audit.
-- Expose selected ToolNet tools through MCP.
 - Run deterministic safety/regression evals.
+- Expose selected ToolNet tools through MCP in a future milestone.
 
 ## Package Direction
 
@@ -31,4 +31,4 @@ M0 is documentation and scaffold alignment only. The current runnable product re
 - No certified SMART, CRD, DTR, or PAS conformance claim.
 - No live EHR or payer integration.
 - No generic healthcare marketplace scope in the near term.
-- No production-path docs until M9.
+- No production implementation; production-path docs are guidance only.

@@ -1,6 +1,6 @@
 # M8 Formal Doctor Evals
 
-M8 adds deterministic regression and safety evals for the synthetic Doctor Agent OS prior-auth flow.
+M8 added deterministic regression and safety evals for the synthetic Doctor Agent OS prior-auth flow.
 
 Run:
 

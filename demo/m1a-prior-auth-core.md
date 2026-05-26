@@ -19,4 +19,4 @@ npm run build
 - `npm test` passes all contract tests, including core boundary and core use-case coverage.
 - `prior-auth-core` source has no `apps/api`, `../apps`, or `doctor-toolnet` imports.
 - API routes continue returning existing response shapes.
-- No database table rename or ToolNet package implementation is introduced.
+- M1a itself did not require database table renames; current ToolNet coverage lives in `@open-prior-auth/doctor-toolnet`.

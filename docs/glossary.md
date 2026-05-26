@@ -1,6 +1,6 @@
 # Glossary
 
-`CONTEXT.md` is the working modeling source of truth. This file is the public stabilized mirror for terms that appear in docs, package boundaries, and future implementation plans.
+`CONTEXT.md` is the working modeling source of truth. This file is the public stabilized mirror for terms that appear in docs, package boundaries, and implementation plans.
 
 ## Domain Terms
 
@@ -83,5 +83,5 @@
 - Prior Auth Core is the source of truth for provider-side prior authorization Use Cases.
 - HTTP routes and ToolNet tools are sibling adapters over Use Cases.
 - ToolNet tools do not call internal HTTP routes.
-- MCP exposes selected ToolNet tools and does not bypass ToolNet for case-changing actions.
+- When MCP is implemented, it should expose selected ToolNet tools and must not bypass ToolNet for case-changing actions.
 - `apps/*` may import `packages/*`; `packages/*` must not import `apps/*`.

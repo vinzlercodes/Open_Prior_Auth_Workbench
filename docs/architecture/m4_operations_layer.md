@@ -4,7 +4,7 @@
 
 ## Boundary
 
-M4 adds a local operations layer on top of the M1-M3 CRD-inspired, DTR-inspired, and PAS-style demo flow. It is still synthetic-only and in-memory. It does not add Temporal, durable persistence, PAS inquiry, real payer endpoints, or production adjudication.
+M4 added a local operations layer on top of the M1-M3 CRD-inspired, DTR-inspired, and PAS-style demo flow. At that milestone it was still synthetic-only and in-memory. It did not add Temporal, durable persistence, PAS inquiry, real payer endpoints, or production adjudication.
 
 ## Status Model
 

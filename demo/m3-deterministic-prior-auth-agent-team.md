@@ -1,6 +1,6 @@
 # M3 Deterministic Prior-Auth Agent Team
 
-M3 adds a scripted prior-auth agent team in `@open-prior-auth/doctor-runtime`. It uses Runtime + ToolNet only, requires no live LLM, and keeps guarded submit paused for human approval.
+M3 added a scripted prior-auth agent team in `@open-prior-auth/doctor-runtime`. It uses Runtime + ToolNet only, requires no live LLM, and keeps guarded submit paused for human approval.
 
 ## What It Proves
 

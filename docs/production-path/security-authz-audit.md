@@ -23,7 +23,7 @@ Audit must be immutable enough for security review, incident response, payer dis
 
 ## Non-Goals
 
-- Do not implement Keycloak, OpenFGA, SMART launch, backend services, or secret rotation in M9.
+- Do not implement Keycloak, OpenFGA, SMART launch, backend services, or secret rotation as part of the docs-only production path.
 - Do not treat local actor strings or deterministic traces as production authentication.
 - Do not store or process PHI until security, audit, tenant, and operational controls are implemented and reviewed.
 

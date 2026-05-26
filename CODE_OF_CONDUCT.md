@@ -2,7 +2,7 @@
 
 ## Our Pledge
 
-Project participants are expected to be respectful, constructive, and clear. The goal is to make the project useful for healthcare builders without creating an intimidating or careless community space.
+Project participants are expected to be respectful, constructive, and clear. The goal is to make this synthetic Doctor Agent OS / prior authorization workbench useful for healthcare builders without creating an intimidating or careless community space.
 
 ## Expected Behavior
 
@@ -10,6 +10,7 @@ Project participants are expected to be respectful, constructive, and clear. The
 - Disagree about ideas without personal attacks.
 - Keep comments focused on the work.
 - Respect privacy and do not post sensitive healthcare, credential, or customer data.
+- Keep standards, safety, and production-readiness claims precise; correct overclaims without personal attacks.
 
 ## Unacceptable Behavior
 
