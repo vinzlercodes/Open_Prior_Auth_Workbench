@@ -1,3 +1,5 @@
+[![aislop](https://badges.scanaislop.com/score/vinzlercodes/Open_Prior_Auth_Workbench.svg)](https://scanaislop.com)
+
 # Open Prior Auth Agent Workbench
 
 Open Prior Auth Agent Workbench is a synthetic-data-only, provider-side prior authorization application built on the Doctor Agent OS substrate. The current runnable baseline covers M1-M8 plus M9 production-path documentation: local MRI lumbar spine and DME power wheelchair flows for requirement discovery, documentation capture, supporting information, PAS-style packet assembly, operations queueing, payer status handling, more-info loops, deterministic agent runs, approval gates, standards-shaped local gateway routes, and formal deterministic evals.
