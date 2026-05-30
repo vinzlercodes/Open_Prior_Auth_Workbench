@@ -1,0 +1,21 @@
+version: 1
+
+exclude:
+  - node_modules
+  - .git
+  - dist
+  - build
+  - coverage
+  - .next
+  - .turbo
+  - .data
+  - "**/.data/**"
+  - "**/evidence-uploads/**"
+
+rules:
+  ai-slop/narrative-comment: warning
+  ai-slop/trivial-comment: warning
+  security/hardcoded-secret: error
+
+ci:
+  failBelow: 0
