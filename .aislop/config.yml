@@ -18,4 +18,4 @@ rules:
   security/hardcoded-secret: error
 
 ci:
-  failBelow: 0
+  failBelow: 35
