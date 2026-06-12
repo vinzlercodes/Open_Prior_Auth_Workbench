@@ -67,7 +67,8 @@ The `/dtr/*` endpoints are local DTR-like product endpoints. The `/pas/*` endpoi
 - `packages/shared-types/`: Shared TypeScript contracts used by the API and web app.
 - `packages/prior-auth-core/`: provider-side prior-auth Use Cases and ports.
 - `packages/doctor-toolnet/`: agent/tool adapter over Prior Auth Core.
-- `packages/doctor-runtime/`: workflow-agnostic run/task/tool/approval/trace runtime with SQLite persistence.
+- `packages/doctor-runtime/`: workflow-agnostic run/task/tool/approval/trace runtime with SQLite persistence and generic tool-catalog interfaces.
+- `packages/prior-auth-agent-team/`: deterministic prior-auth agent team and ToolNet bridge over the generic runtime.
 - `packages/doctor-mcp/`: README-only placeholder for the planned MCP boundary over ToolNet.
 - `packages/doctor-evals/`: deterministic regression and safety harness for local synthetic agent runs.
 - `data/`: Synthetic FHIR bundles, golden scenarios, payer rule packs, questionnaires, evidence fixtures, and standards-shaped payload fixtures.
