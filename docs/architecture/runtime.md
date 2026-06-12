@@ -1,6 +1,6 @@
 # Doctor Runtime
 
-Doctor Runtime is the workflow-agnostic runtime package for agent runs, tasks, approvals, tool call records, and trace events.
+Doctor Runtime is the workflow-agnostic runtime package for agent runs, tasks, approvals, tool call records, and trace events. It does not import Prior Auth Core or Doctor ToolNet; workflow-specific packages supply a generic runtime tool catalog.
 
 ## Target Primitives
 
@@ -26,11 +26,11 @@ M2 added SQLite runtime tables:
 
 ## ApprovalGate
 
-Guarded ToolNet write/submit tools pause the run and create approval requests. Approval records trace events, executes the guarded Prior Auth Core Use Case, and resumes the run. Rejection records trace events, rejects the run, and leaves prior-auth case state unchanged.
+Guarded tools pause the run and create approval requests. Approval records trace events, delegates guarded execution to the configured runtime tool catalog, and resumes the run. Rejection records trace events, rejects the run, and leaves domain state unchanged.
 
 ## M3 Deterministic Prior-Auth Agent Team
 
-M3 added a replayable scripted prior-auth agent team inside `packages/doctor-runtime`. The team has deterministic role classes for orchestration, requirement discovery, documentation, evidence review, packet assembly, and compliance boundary checks.
+M3 added a replayable scripted prior-auth agent team. That workflow now lives in `packages/prior-auth-agent-team`, which depends on Doctor Runtime and Doctor ToolNet while keeping `packages/doctor-runtime` generic. The team has deterministic role classes for orchestration, requirement discovery, documentation, evidence review, packet assembly, and compliance boundary checks.
 
 The MRI and DME happy paths run over Runtime + ToolNet only:
 

@@ -19,7 +19,8 @@ The current runnable product includes the M1-M8 synthetic prior authorization wo
 
 - `packages/prior-auth-core`: provider-side prior authorization Use Cases and ports.
 - `packages/doctor-toolnet`: agent-facing tool registry and contracts over Use Cases.
-- `packages/doctor-runtime`: workflow-agnostic run/task/approval/trace state.
+- `packages/doctor-runtime`: workflow-agnostic run/task/approval/trace state and generic tool-catalog execution boundary.
+- `packages/prior-auth-agent-team`: deterministic prior-auth agent workflow and ToolNet bridge over Doctor Runtime.
 - `packages/doctor-mcp`: external MCP boundary over selected ToolNet tools.
 - `packages/doctor-evals`: deterministic regression and safety harness.
 

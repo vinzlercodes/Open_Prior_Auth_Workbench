@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { getDoctorToolDefinition } from "@open-prior-auth/doctor-toolnet";
-import type { DeterministicPriorAuthAgentTeamResult } from "@open-prior-auth/doctor-runtime";
+import type { DeterministicPriorAuthAgentTeamResult } from "@open-prior-auth/prior-auth-agent-team";
 import type { DoctorEvalScenario } from "./scenarios.js";
 import type { NormalizedTraceEvent } from "./trace.js";
 import { promptInjectionText, repoRoot } from "./harness.js";
@@ -118,6 +118,7 @@ export function assertPromptInjectionTreatedAsData(result: DeterministicPriorAut
 
 export function assertNoInternalHttpBoundaries(root = repoRoot()): EvalAssertion[] {
   const directories = [
+    "packages/prior-auth-agent-team/src",
     "packages/doctor-toolnet/src",
     "packages/doctor-runtime/src",
     "packages/doctor-evals/src"

@@ -1,18 +1,61 @@
-import type {
-  DoctorToolCallContext,
-  DoctorToolCallStatus,
-  DoctorToolDependencies,
-  DoctorToolError,
-  DoctorToolInputByName,
-  DoctorToolName,
-  DoctorToolRiskLevel
-} from "@open-prior-auth/doctor-toolnet";
-
 export type AgentRunStatus = "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
 export type AgentTaskStatus = "pending" | "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
-export type RuntimeToolCallStatus = DoctorToolCallStatus | "waiting_for_approval" | "rejected";
+export type RuntimeExternalToolCallStatus = "succeeded" | "failed" | "blocked";
+export type RuntimeToolCallStatus = RuntimeExternalToolCallStatus | "waiting_for_approval" | "rejected";
 export type ApprovalRequestStatus = "pending" | "approved" | "rejected";
 export type ApprovalDecisionValue = "approved" | "rejected";
+
+export interface RuntimeToolApprovalMetadata {
+  approvalRequired: boolean;
+  reason?: string;
+  blockedCode?: string;
+}
+
+export interface RuntimeToolDefinition {
+  name: string;
+  category: string;
+  riskLevel: string;
+  approval: RuntimeToolApprovalMetadata;
+  executable: boolean;
+}
+
+export interface RuntimeToolError {
+  code: string;
+  message: string;
+  details?: unknown;
+}
+
+export interface RuntimeToolCallContext {
+  actorUserId?: string;
+  agentRunId?: string;
+  agentTaskId?: string;
+}
+
+export interface RuntimeExternalToolCallRecord {
+  callId: string;
+  toolName: string;
+  category: string;
+  riskLevel: string;
+  approvalRequired: boolean;
+  status: RuntimeExternalToolCallStatus;
+  startedAt: string;
+  completedAt: string;
+  input: unknown;
+  output?: unknown;
+  error?: RuntimeToolError;
+}
+
+export type RuntimeExternalToolExecutionResult =
+  | {
+      ok: true;
+      output: unknown;
+      record: RuntimeExternalToolCallRecord;
+    }
+  | {
+      ok: false;
+      error: RuntimeToolError;
+      record: RuntimeExternalToolCallRecord;
+    };
 
 export interface AgentRun {
   id: string;
@@ -43,9 +86,9 @@ export interface ToolCallRecord {
   callId: string;
   runId: string;
   taskId: string;
-  toolName: DoctorToolName;
+  toolName: string;
   category: string;
-  riskLevel: DoctorToolRiskLevel;
+  riskLevel: string;
   approvalRequired: boolean;
   approvalRequestId?: string;
   status: RuntimeToolCallStatus;
@@ -53,7 +96,7 @@ export interface ToolCallRecord {
   completedAt?: string;
   input: unknown;
   output?: unknown;
-  error?: DoctorToolError;
+  error?: RuntimeToolError;
 }
 
 export interface ApprovalDecision {
@@ -69,8 +112,8 @@ export interface ApprovalRequest {
   runId: string;
   taskId: string;
   toolCallId: string;
-  toolName: DoctorToolName;
-  riskLevel: DoctorToolRiskLevel;
+  toolName: string;
+  riskLevel: string;
   status: ApprovalRequestStatus;
   reason: string;
   requestedBy: string;
@@ -101,14 +144,14 @@ export interface RuntimeIdGenerator {
   generateId(prefix?: string): string;
 }
 
-export interface RuntimeToolExecutionRequest<Name extends DoctorToolName = DoctorToolName> {
+export interface RuntimeToolExecutionRequest {
   runId?: string;
   taskId?: string;
   taskPlan?: TaskPlan;
   objective?: string;
-  toolName: Name;
-  input: DoctorToolInputByName[Name];
-  callContext?: DoctorToolCallContext;
+  toolName: string;
+  input: unknown;
+  callContext?: RuntimeToolCallContext;
 }
 
 export type RuntimeToolExecutionResult =
@@ -124,7 +167,7 @@ export type RuntimeToolExecutionResult =
       run: AgentRun;
       task: AgentTask;
       record: ToolCallRecord;
-      error: DoctorToolError;
+      error: RuntimeToolError;
       approvalRequest?: ApprovalRequest;
     };
 
@@ -149,7 +192,7 @@ export type ApprovalDecisionResult =
       task: AgentTask;
       record: ToolCallRecord;
       approvalRequest: ApprovalRequest;
-      error: DoctorToolError;
+      error: RuntimeToolError;
     };
 
 export interface DoctorRuntimeStore {
@@ -172,15 +215,19 @@ export interface DoctorRuntimeStore {
 
 export interface DoctorRuntimeDependencies {
   runtimeStore: DoctorRuntimeStore;
-  toolDependencies: DoctorToolDependencies;
+  toolCatalog: RuntimeToolCatalog;
   clock?: RuntimeClock;
   idGenerator?: RuntimeIdGenerator;
 }
 
+export interface RuntimeToolCatalog {
+  getToolDefinition(toolName: string): RuntimeToolDefinition;
+  executeTool(request: RuntimeToolExecutionRequest): Promise<RuntimeExternalToolExecutionResult>;
+  executeApprovedTool(approvalRequest: ApprovalRequest): Promise<unknown> | unknown;
+}
+
 export interface DoctorRuntime {
-  executeRuntimeTool<Name extends DoctorToolName>(
-    request: RuntimeToolExecutionRequest<Name>
-  ): Promise<RuntimeToolExecutionResult>;
+  executeRuntimeTool(request: RuntimeToolExecutionRequest): Promise<RuntimeToolExecutionResult>;
   approveApprovalRequest(request: ApprovalDecisionRequest): Promise<ApprovalDecisionResult>;
   rejectApprovalRequest(request: ApprovalDecisionRequest): Promise<ApprovalDecisionResult>;
 }
