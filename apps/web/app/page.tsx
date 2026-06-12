@@ -13,58 +13,8 @@ import type {
   WorkItemOperationsHistory,
   WorkItemQueueRow
 } from "@open-prior-auth/shared-types";
-
-type AgentRunStatus = "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
-type AgentStepStatus = "pending" | "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
-type ApprovalStatus = "pending" | "approved" | "rejected";
-
-interface AgentCockpitTraceEvent {
-  sequence: number;
-  eventId: string;
-  type: string;
-  actor: string;
-  at: string;
-  message: string;
-}
-
-interface AgentCockpitRunResponse {
-  workItem: WorkItem;
-  run: {
-    id: string;
-    status: AgentRunStatus;
-  };
-  steps: Array<{
-    agent: string;
-    status: AgentStepStatus;
-    summary: string;
-    toolName?: string;
-  }>;
-  trace: AgentCockpitTraceEvent[];
-  questionnaireApproval: {
-    status: ApprovalStatus;
-    toolName: string;
-  };
-  submitApproval: {
-    status: ApprovalStatus;
-    toolName: string;
-  };
-  questionnairePackage: QuestionnairePackage;
-  evidence: EvidenceListResponse;
-  evidenceBoard: Array<{
-    requirementCode: string;
-    requirementLabel: string;
-    requirementDetail: string;
-    sourceLabel: string;
-    status: string;
-    fixtureIds: string[];
-    evidenceAttachmentIds: string[];
-  }>;
-  packet: SubmissionPacket;
-  statusTimeline: StatusEvent[];
-  auditTrace: AuditEvent[];
-}
-
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:4000";
+import { getJson, postJson } from "./apiClient";
+import type { AgentCockpitRunResponse, AgentCockpitTraceEvent } from "./cockpitTypes";
 
 const scenarioOptions = [
   {
@@ -602,27 +552,6 @@ function describeNextAction(
     title: titleCase(workItem.status),
     detail: workItem.requirementResult.explanatoryNotes.at(-1) ?? workItem.requirementResult.nextAction
   };
-}
-
-async function getJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`);
-  if (!response.ok) {
-    throw new Error(`${path} failed with ${response.status}`);
-  }
-  return await response.json() as T;
-}
-
-async function postJson<T = unknown>(path: string, body: unknown): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body)
-  });
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`${path} failed with ${response.status}: ${text}`);
-  }
-  return await response.json() as T;
 }
 
 function titleCase(value: string): string {
