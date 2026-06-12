@@ -77,7 +77,7 @@ Status: complete.
 
 Goal: add minimal workflow-agnostic runtime lifecycle, approval pause/resume, and durable trace state.
 
-Scope: create `packages/doctor-runtime`; add `AgentRun`, `AgentTask`, `TaskPlan`, `ToolCallRecord`, `ApprovalRequest`, `ApprovalDecision`, and `TraceEvent`; add SQLite runtime tables; pause guarded writes for approval and resume/reject after human decision.
+Scope: create `packages/doctor-runtime`; add `AgentRun`, `AgentTask`, `TaskPlan`, `ToolCallRecord`, `ApprovalRequest`, `ApprovalDecision`, `TraceEvent`, and a generic runtime tool-catalog boundary; add SQLite runtime tables; pause guarded writes for approval and resume/reject after human decision.
 
 Out of scope: Postgres, Temporal, JSON-file runtime state, prior-auth schema rename, broad multi-agent teams, and generic healthcare workflow API.
 
@@ -91,13 +91,13 @@ Status: complete.
 
 Goal: implement replayable scripted prior-auth agent team over Runtime + ToolNet.
 
-Scope: add deterministic orchestrator, requirement discovery, documentation, evidence, packet assembly, and compliance boundary roles; support MRI happy path from queue to approval request; add minimal golden trace smoke test.
+Scope: add `packages/prior-auth-agent-team` with deterministic orchestrator, requirement discovery, documentation, evidence, packet assembly, compliance boundary roles, and ToolNet runtime bridge; support MRI happy path from queue to approval request; add minimal golden trace smoke test.
 
 Out of scope: model-backed agents, autonomous queue processing, real payer submission, and broad agent platform.
 
 Exit criteria: no live LLM required for happy path; trace contains ordered agents/tools; guarded submit stops at `waiting_for_human`.
 
-Files/packages affected: `packages/doctor-runtime`, `packages/doctor-toolnet`, `packages/prior-auth-core`, `tests`.
+Files/packages affected: `packages/prior-auth-agent-team`, `packages/doctor-runtime`, `packages/doctor-toolnet`, `packages/prior-auth-core`, `tests`.
 
 ## M4: Reusable Prior-Auth Domain Proof
 
@@ -111,7 +111,7 @@ Out of scope: DME-specific orchestrator, copied workflows, production payer inte
 
 Exit criteria: MRI/Acme and DME/Blue Ridge both run through queue, case read, requirements, questionnaire, evidence, packet preview, approval request, and trace output using shared workflow.
 
-Files/packages affected: `data`, `packages/prior-auth-core`, `packages/doctor-toolnet`, `packages/doctor-runtime`, `apps/api`, `apps/web`, `tests`.
+Files/packages affected: `data`, `packages/prior-auth-core`, `packages/doctor-toolnet`, `packages/doctor-runtime`, `packages/prior-auth-agent-team`, `apps/api`, `apps/web`, `tests`.
 
 ## M5: Agent Cockpit
 
@@ -167,7 +167,7 @@ Out of scope: LLM judge, model benchmarking, eval dashboard UI, production obser
 
 Exit criteria: evals detect unexpected tools, missing approval gates, internal HTTP tool calls, unsafe evidence instructions, and false PHI/conformance/payer submission claims.
 
-Files/packages affected: `packages/doctor-evals`, `packages/doctor-runtime`, `packages/doctor-toolnet`, `data`, root scripts.
+Files/packages affected: `packages/doctor-evals`, `packages/doctor-runtime`, `packages/prior-auth-agent-team`, `packages/doctor-toolnet`, `data`, root scripts.
 
 ## M9: Production-Path Docs
 
