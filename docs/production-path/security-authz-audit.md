@@ -4,6 +4,8 @@
 
 The current workbench has local actor IDs, deterministic ApprovalGate behavior, runtime traces, and safety evals. It has no production identity provider, no real OAuth/OIDC flow, no tenant boundary, no PHI controls, no production secret management, and no immutable audit sink.
 
+`OPEN_PRIOR_AUTH_EXECUTION_MODE=production` blocks local-only unauthenticated mutation and submit routes. This is a safety stop, not production authorization. Real deployments still need identity, policy, approval actor binding, secret management, and immutable audit adapters.
+
 FHIR Security states that production systems need authenticated users or clients, access-control decisions, TLS for production exchange, and audit records for review and detection.
 
 ## Production Requirement

@@ -1,26 +1,13 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import {
-  createPriorAuthRuntimeToolCatalog,
-  runDeterministicPriorAuthAgentTeam
-} from "@open-prior-auth/prior-auth-agent-team";
-import {
-  SqliteRuntimeStore,
-  type ApprovalRequest
-} from "@open-prior-auth/doctor-runtime";
-import {
   discoverCrdServices,
   getDtrQuestionnairePackageFhir,
-  invokeCrdService,
   submitPasClaimFhirMock
 } from "@open-prior-auth/doctor-toolnet";
 import type {
-  AgentCockpitApprovalSummary,
-  AgentCockpitRequirementEvidenceRow,
-  AgentCockpitRunResponse,
   AttachEvidenceRequest,
   CdsHooksRequest,
-  EvidenceListResponse,
   FhirBundle,
   FhirParameters,
   MoreInfoRequestCreateRequest,
@@ -37,7 +24,6 @@ import {
   buildSubmissionPacket,
   evaluateRequirements,
   EvidenceRepository,
-  findRulePackForRequest,
   getCaseAuditTrace,
   getCaseStatusTimeline,
   getPriorAuthorizationCase,
@@ -52,9 +38,16 @@ import {
   type PriorAuthStore
 } from "@open-prior-auth/prior-auth-core";
 import { createLocalStandardsAdapters, type LocalStandardsAdapters } from "./adapters/localStandardsAdapters.js";
+import { isProductionExecutionMode } from "./config/executionMode.js";
 import { FixtureFhirRepository } from "./fhir/fixtureRepository.js";
+import { runPriorAuthCockpitAgent } from "./routes/agentRuns.js";
+import {
+  invokeCrdGatewayService,
+  resolveQuestionnairePackageWorkItemId,
+  standardsSmartConfiguration
+} from "./routes/standards.js";
 import { getGoldenScenario, listGoldenScenarios } from "./scenarios.js";
-import { defaultDatabasePath, SqliteStore } from "./storage/sqliteStore.js";
+import { SqliteStore } from "./storage/sqliteStore.js";
 
 export interface ApiDependencies {
   repository?: FixtureFhirRepository;
@@ -130,6 +123,7 @@ async function routeRequest(
 
   const cdsServiceMatch = url.pathname.match(/^\/cds-services\/([^/]+)$/);
   if (request.method === "POST" && cdsServiceMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<CdsHooksRequest>(request);
     sendJson(response, 200, invokeCrdGatewayService(
       decodeURIComponent(cdsServiceMatch[1]),
@@ -165,24 +159,28 @@ async function routeRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/requirements/evaluate") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<RequirementEvaluationRequest>(request);
     sendJson(response, 200, evaluateRequirements(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/crd/evaluate") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<RequirementEvaluationRequest>(request);
     sendJson(response, 200, adapters.crd.evaluateCoverageRequirements(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/work-items") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<WorkItemCreateRequest>(request);
     sendJson(response, 201, store.createWorkItem(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/agent-runs/prior-auth-deterministic") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<{ workItemId: string; actorUserId?: string }>(request);
     sendJson(response, 200, await runPriorAuthCockpitAgent(body, repository, store, runtimeStorePath));
     return;
@@ -198,6 +196,7 @@ async function routeRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/demo/seed-work-items") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<{ count?: number; ownerUserId?: string; scenarioId?: string }>(request);
     const count = Math.max(1, Math.min(body.count ?? 3, 10));
     const baseRequest = getGoldenScenario(body.scenarioId).request;
@@ -233,18 +232,21 @@ async function routeRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/dtr/package") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<QuestionnairePackageRequest>(request);
     sendJson(response, 200, getQuestionnairePackage(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/dtr/questionnaire-package") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<QuestionnairePackageRequest>(request);
     sendJson(response, 200, adapters.dtr.getStandardsPackage(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/fhir/Questionnaire/$questionnaire-package") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<QuestionnairePackageRequest | FhirParameters>(request);
     const workItemId = resolveQuestionnairePackageWorkItemId(body, store);
     sendJson(response, 200, getDtrQuestionnairePackageFhir({ workItemId }, { repository, store }));
@@ -252,42 +254,49 @@ async function routeRequest(
   }
 
   if (request.method === "POST" && url.pathname === "/dtr/evaluate-fixture-expression") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<{ workItemId: string; expressionName: string }>(request);
     sendJson(response, 200, adapters.dtr.evaluateFixtureExpression(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/dtr/save-response") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<QuestionnaireResponseSaveRequest>(request);
     sendJson(response, 200, saveQuestionnaireResponse(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/build-packet") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PacketBuildRequest>(request);
     sendJson(response, 200, buildSubmissionPacket(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/build-submission") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PacketBuildRequest>(request);
     sendJson(response, 200, adapters.pas.buildSubmission(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/submit") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PacketSubmitRequest>(request);
     sendJson(response, 200, submitMockPacket(body, repository, store));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/pas/submit-local") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PacketSubmitRequest>(request);
     sendJson(response, 200, adapters.pas.submit(body));
     return;
   }
 
   if (request.method === "POST" && url.pathname === "/fhir/Claim/$submit") {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PacketSubmitRequest & { claimSubmitBundle?: FhirBundle }>(request);
     sendJson(response, 200, submitPasClaimFhirMock(body, { repository, store }));
     return;
@@ -301,6 +310,7 @@ async function routeRequest(
 
   const attachFixtureMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/attach-fixture$/);
   if (request.method === "POST" && attachFixtureMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<AttachEvidenceRequest>(request);
     sendJson(response, 201, evidenceRepository.attachFixture(decodeURIComponent(attachFixtureMatch[1]), body));
     return;
@@ -308,6 +318,7 @@ async function routeRequest(
 
   const uploadEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/upload$/);
   if (request.method === "POST" && uploadEvidenceMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<UploadEvidenceRequest>(request);
     sendJson(response, 201, evidenceRepository.uploadEvidence(decodeURIComponent(uploadEvidenceMatch[1]), body));
     return;
@@ -315,6 +326,7 @@ async function routeRequest(
 
   const acceptEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/([^/]+)\/accept$/);
   if (request.method === "POST" && acceptEvidenceMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<{ actorUserId?: string }>(request);
     sendJson(response, 200, evidenceRepository.acceptEvidence(
       decodeURIComponent(acceptEvidenceMatch[1]),
@@ -326,6 +338,7 @@ async function routeRequest(
 
   const removeEvidenceMatch = url.pathname.match(/^\/work-items\/([^/]+)\/evidence\/([^/]+)\/remove$/);
   if (request.method === "POST" && removeEvidenceMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<{ actorUserId?: string }>(request);
     sendJson(response, 200, evidenceRepository.removeEvidence(
       decodeURIComponent(removeEvidenceMatch[1]),
@@ -355,6 +368,7 @@ async function routeRequest(
 
   const workItemMoreInfoMatch = url.pathname.match(/^\/work-items\/([^/]+)\/request-more-info$/);
   if (request.method === "POST" && workItemMoreInfoMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<MoreInfoRequestCreateRequest>(request);
     sendJson(response, 200, operationsService.requestMoreInfo(decodeURIComponent(workItemMoreInfoMatch[1]), body));
     return;
@@ -362,6 +376,7 @@ async function routeRequest(
 
   const workItemPayerStatusMatch = url.pathname.match(/^\/work-items\/([^/]+)\/record-payer-status$/);
   if (request.method === "POST" && workItemPayerStatusMatch) {
+    requireLocalMutationAllowed(url.pathname);
     const body = await readJson<PayerStatusRecordRequest>(request);
     sendJson(response, 200, operationsService.recordPayerStatus(decodeURIComponent(workItemPayerStatusMatch[1]), body));
     return;
@@ -376,240 +391,15 @@ async function routeRequest(
   sendJson(response, 404, operationOutcome("error", "not-found", `Route not found: ${url.pathname}`));
 }
 
-function standardsSmartConfiguration() {
-  return {
-    conformance: false,
-    productionConformance: false,
-    mode: "local-non-conformant",
-    authorization_endpoint: "http://localhost:4000/smart/authorize",
-    token_endpoint: "http://localhost:4000/smart/token",
-    capabilities: ["launch-ehr", "client-public"],
-    scopes_supported: ["launch", "patient/*.read", "openid", "fhirUser"]
-  };
-}
-
-function invokeCrdGatewayService(
-  serviceId: string,
-  request: CdsHooksRequest,
-  repository: FixtureFhirRepository,
-  store: PriorAuthStore
-) {
-  try {
-    return invokeCrdService({ serviceId, request }, { repository, store });
-  } catch (error) {
-    throw toGatewayOperationOutcome(error);
+function requireLocalMutationAllowed(pathname: string): void {
+  if (!isProductionExecutionMode()) {
+    return;
   }
-}
-
-function toGatewayOperationOutcome(error: unknown): OperationOutcomeError {
-  const message = error instanceof Error ? error.message : "Standards gateway request failed.";
-  if (message.startsWith("Unknown local CRD service id:")) {
-    return new OperationOutcomeError(404, "not-found", message);
-  }
-  if (message.includes(" expects hook ")) {
-    return new OperationOutcomeError(400, "invalid", message);
-  }
-  if (message.includes(" is missing ") || message.includes(" must include ")) {
-    return new OperationOutcomeError(400, "required", message);
-  }
-  return new OperationOutcomeError(400, "invalid", message);
-}
-
-function resolveQuestionnairePackageWorkItemId(
-  body: QuestionnairePackageRequest | FhirParameters,
-  store: PriorAuthStore
-): string {
-  if (isRecord(body) && typeof body.workItemId === "string" && body.workItemId.length > 0) {
-    return body.workItemId;
-  }
-  if (!isFhirParameters(body)) {
-    throw new OperationOutcomeError(
-      400,
-      "required",
-      "FHIR Questionnaire/$questionnaire-package requires workItemId or Parameters with patientId, coverageId, and requestResourceId."
-    );
-  }
-
-  const patientId = parameterString(body, "patientId");
-  const coverageId = parameterString(body, "coverageId");
-  const requestResourceId = parameterString(body, "requestResourceId");
-  if (!patientId || !coverageId || !requestResourceId) {
-    throw new OperationOutcomeError(
-      400,
-      "invalid",
-      "FHIR Questionnaire/$questionnaire-package Parameters must include patientId, coverageId, and requestResourceId."
-    );
-  }
-
-  const workItem = store.listWorkItems().find((candidate) =>
-    candidate.patientId === patientId
-    && candidate.coverageId === coverageId
-    && candidate.requestResourceId === requestResourceId
+  throw new OperationOutcomeError(
+    403,
+    "forbidden",
+    `Local synthetic mutation route ${pathname} is disabled when OPEN_PRIOR_AUTH_EXECUTION_MODE=production. Use policy-bound production adapters instead.`
   );
-  if (!workItem) {
-    throw new OperationOutcomeError(
-      404,
-      "not-found",
-      `No work item matches Questionnaire/$questionnaire-package Parameters for patient ${patientId}, coverage ${coverageId}, request ${requestResourceId}.`
-    );
-  }
-  return workItem.id;
-}
-
-function isFhirParameters(value: unknown): value is FhirParameters {
-  return isRecord(value) && value.resourceType === "Parameters" && Array.isArray(value.parameter);
-}
-
-function parameterString(parameters: FhirParameters, name: string): string | undefined {
-  const parameter = parameters.parameter?.find((candidate) => candidate.name === name);
-  return typeof parameter?.valueString === "string" && parameter.valueString.length > 0
-    ? parameter.valueString
-    : undefined;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-async function runPriorAuthCockpitAgent(
-  input: { workItemId: string; actorUserId?: string },
-  repository: FixtureFhirRepository,
-  store: PriorAuthStore,
-  runtimeStorePath: string | undefined
-): Promise<AgentCockpitRunResponse> {
-  if (!input.workItemId) {
-    throw new OperationOutcomeError(400, "required", "workItemId is required.");
-  }
-
-  const runtimeStore = new SqliteRuntimeStore(runtimeStorePath ?? defaultDatabasePath());
-  try {
-    const result = await runDeterministicPriorAuthAgentTeam({
-      workItemId: input.workItemId,
-      actorUserId: input.actorUserId ?? "m5-cockpit-operator",
-      questionnaireApprovalActorUserId: "m5-scripted-approver"
-    }, {
-      runtimeStore,
-      toolCatalog: createPriorAuthRuntimeToolCatalog({
-        repository,
-        store
-      })
-    });
-    const caseRoot = getPriorAuthorizationCase(result.workItemId, store);
-    const questionnairePackage = getQuestionnairePackage({ workItemId: result.workItemId }, repository, store);
-    const evidence = listEvidence(result.workItemId, store);
-
-    return {
-      run: result.run,
-      workItem: caseRoot.workItem,
-      caseStatus: caseRoot.lifecycleStatus,
-      requirementEvaluation: result.requirementEvaluation,
-      questionnairePackage,
-      evidence,
-      evidenceBoard: buildEvidenceBoard(caseRoot.workItem, evidence),
-      packet: result.packet,
-      receipt: caseRoot.submissionReceipts.at(-1) ?? null,
-      questionnaireApproval: summarizeApproval(result.questionnaireApprovalRequest),
-      submitApproval: summarizeApproval(result.submitApprovalRequest),
-      steps: result.steps,
-      trace: result.trace,
-      statusTimeline: caseRoot.statusTimeline,
-      auditTrace: caseRoot.auditTrace
-    };
-  } finally {
-    runtimeStore.close();
-  }
-}
-
-function summarizeApproval(approval: ApprovalRequest): AgentCockpitApprovalSummary {
-  return {
-    id: approval.id,
-    toolName: approval.toolName,
-    riskLevel: approval.riskLevel,
-    status: approval.status,
-    reason: approval.reason,
-    requestedBy: approval.requestedBy,
-    requestedAt: approval.requestedAt,
-    decidedBy: approval.decision?.decidedBy,
-    decidedAt: approval.decision?.decidedAt,
-    decisionReason: approval.decision?.reason
-  };
-}
-
-function buildEvidenceBoard(
-  workItem: Awaited<ReturnType<typeof getPriorAuthorizationCase>>["workItem"],
-  evidence: EvidenceListResponse
-): AgentCockpitRequirementEvidenceRow[] {
-  const rulePack = findRulePackForRequest({
-    payerId: workItem.payerId,
-    serviceLine: workItem.serviceLine
-  });
-  const requirements = rulePack?.rules[0]?.requiredClinicalContext ?? workItem.requirementResult.missingData;
-
-  return requirements.map((requirement) => {
-    const matchingAttachments = evidence.attachments.filter((attachment) =>
-      evidenceMatchesRequirement(attachment.title, attachment.filename, requirement.code, requirement.resourceType)
-    );
-    const matchingFixtures = evidence.availableFixtures.filter((fixture) =>
-      evidenceMatchesRequirement(fixture.title, fixture.filename, requirement.code, requirement.resourceType)
-    );
-    const packetAttachments = matchingAttachments.filter((attachment) => attachment.status === "included-in-packet");
-    const acceptedAttachments = matchingAttachments.filter((attachment) => attachment.status === "accepted");
-    const attachedAttachments = matchingAttachments.filter((attachment) => attachment.status === "attached");
-    const missing = workItem.requirementResult.missingData.some((item) => item.code === requirement.code);
-
-    return {
-      requirementCode: requirement.code,
-      requirementLabel: requirement.label,
-      requirementDetail: requirement.detail,
-      resourceType: requirement.resourceType,
-      status: packetAttachments.length > 0
-        ? "included-in-packet"
-        : acceptedAttachments.length > 0
-          ? "accepted"
-          : attachedAttachments.length > 0
-            ? "attached"
-            : missing
-              ? "missing"
-              : matchingFixtures.length > 0
-                ? "available"
-                : "satisfied",
-      sourceLabel: sourceLabelForRequirement(requirement.resourceType, workItem.requirementResult.requestSummary),
-      evidenceAttachmentIds: matchingAttachments.map((attachment) => attachment.id),
-      fixtureIds: matchingFixtures.map((fixture) => fixture.fixtureId)
-    };
-  });
-}
-
-function evidenceMatchesRequirement(
-  title: string,
-  filename: string,
-  requirementCode: string,
-  resourceType: string
-): boolean {
-  if (resourceType === "Condition") {
-    return false;
-  }
-  const haystack = `${title} ${filename}`.toLowerCase();
-  if (requirementCode.includes("conservative")) {
-    return haystack.includes("conservative") || haystack.includes("mri");
-  }
-  if (requirementCode.includes("functional") || requirementCode.includes("mobility")) {
-    return haystack.includes("mobility") || haystack.includes("wheelchair") || haystack.includes("dme");
-  }
-  return false;
-}
-
-function sourceLabelForRequirement(
-  resourceType: string,
-  summary: { diagnosisSummary?: string; evidenceSummary?: string }
-): string {
-  if (resourceType === "Condition") {
-    return summary.diagnosisSummary ?? "No diagnosis context loaded";
-  }
-  if (resourceType === "Observation") {
-    return summary.evidenceSummary ?? "No observation context loaded";
-  }
-  return "No source context loaded";
 }
 
 async function readJson<T>(request: IncomingMessage): Promise<T> {

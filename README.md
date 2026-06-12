@@ -32,6 +32,8 @@ Open `http://localhost:3000`. The API defaults to `http://localhost:4000`. The w
 
 The API uses SQLite by default at `.data/open-prior-auth.sqlite`. Set `OPEN_PRIOR_AUTH_DB_PATH` to use another local database file.
 
+Set `OPEN_PRIOR_AUTH_EXECUTION_MODE=production` to disable local-only unauthenticated mutation and submit routes. The default is `local` so the synthetic demo remains runnable.
+
 Useful local data commands:
 
 ```bash
