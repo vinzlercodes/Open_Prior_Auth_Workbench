@@ -1,5 +1,5 @@
 {
-  "name": "@open-prior-auth/doctor-evals",
+  "name": "@open-prior-auth/prior-auth-agent-team",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,13 +7,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "evals": "npm run build && node dist/cli.js"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@open-prior-auth/doctor-runtime": "0.1.0",
     "@open-prior-auth/doctor-toolnet": "0.1.0",
-    "@open-prior-auth/prior-auth-agent-team": "0.1.0",
     "@open-prior-auth/prior-auth-core": "0.1.0",
     "@open-prior-auth/shared-types": "0.1.0"
   }

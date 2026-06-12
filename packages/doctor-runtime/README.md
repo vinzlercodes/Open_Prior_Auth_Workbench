@@ -1,6 +1,6 @@
 # Doctor Runtime
 
-Doctor Runtime owns workflow-agnostic agent runs, tasks, tool call records, approval requests, approval decisions, and trace events.
+Doctor Runtime owns workflow-agnostic agent runs, tasks, tool call records, approval requests, approval decisions, and trace events. It delegates tool metadata, tool execution, and approved guarded execution to a generic runtime tool catalog supplied by workflow packages.
 
 ## M2 Runtime Surface
 
@@ -31,4 +31,4 @@ Runtime SQLite tables are separate from prior-auth case tables:
 
 ## ApprovalGate
 
-Guarded ToolNet tools pause the run, create an approval request, and do not mutate case state. Approval executes the guarded Prior Auth Core Use Case and resumes the run. Rejection records trace state and leaves prior-auth case state unchanged.
+Guarded tools pause the run, create an approval request, and do not mutate domain state. Approval delegates to the configured runtime tool catalog and resumes the run. Rejection records trace state and leaves domain state unchanged.

@@ -12,9 +12,12 @@ import {
 import {
   createDoctorRuntime,
   executeRuntimeTool,
-  runDeterministicPriorAuthAgentTeam,
   SqliteRuntimeStore
 } from "../packages/doctor-runtime/dist/index.js";
+import {
+  createPriorAuthRuntimeToolCatalog,
+  runDeterministicPriorAuthAgentTeam
+} from "../packages/prior-auth-agent-team/dist/index.js";
 import { FixtureFhirRepository } from "../apps/api/dist/fhir/fixtureRepository.js";
 import { MemoryStore } from "../apps/api/dist/storage/memoryStore.js";
 import { SqliteStore } from "../apps/api/dist/storage/sqliteStore.js";
@@ -69,6 +72,70 @@ function createIds() {
   };
 }
 
+function createGenericToolCatalog() {
+  const definitions = new Map([
+    ["generic.read", {
+      name: "generic.read",
+      category: "generic",
+      riskLevel: "read",
+      approval: { approvalRequired: false },
+      executable: true
+    }],
+    ["generic.write", {
+      name: "generic.write",
+      category: "generic",
+      riskLevel: "guarded_write",
+      approval: { approvalRequired: true, reason: "Generic write requires approval." },
+      executable: false
+    }],
+    ["generic.fail_after_approval", {
+      name: "generic.fail_after_approval",
+      category: "generic",
+      riskLevel: "guarded_write",
+      approval: { approvalRequired: true, reason: "Generic failure path requires approval." },
+      executable: false
+    }]
+  ]);
+  let callId = 0;
+  return {
+    writes: [],
+    getToolDefinition(toolName) {
+      const definition = definitions.get(toolName);
+      if (!definition) {
+        throw new Error(`Unknown generic tool: ${toolName}`);
+      }
+      return definition;
+    },
+    async executeTool(request) {
+      callId += 1;
+      return {
+        ok: true,
+        output: { echoed: request.input, actor: request.callContext?.actorUserId },
+        record: {
+          callId: `generic-call-${String(callId).padStart(4, "0")}`,
+          toolName: request.toolName,
+          category: "generic",
+          riskLevel: "read",
+          approvalRequired: false,
+          status: "succeeded",
+          startedAt: "2026-04-25T12:00:00.000Z",
+          completedAt: "2026-04-25T12:00:00.000Z",
+          input: request.input,
+          output: { echoed: request.input, actor: request.callContext?.actorUserId }
+        }
+      };
+    },
+    executeApprovedTool(approvalRequest) {
+      if (approvalRequest.toolName === "generic.fail_after_approval") {
+        throw new Error("approved generic tool failed");
+      }
+      const output = { approvedInput: approvalRequest.input };
+      this.writes.push(output);
+      return output;
+    }
+  };
+}
+
 function createFixture(runtimePath = ":memory:", scenario = goldenScenario) {
   const time = createClock();
   const repository = new FixtureFhirRepository(scenario.bundlePath);
@@ -90,7 +157,7 @@ function createFixture(runtimePath = ":memory:", scenario = goldenScenario) {
   };
   const runtimeDependencies = {
     runtimeStore,
-    toolDependencies,
+    toolCatalog: createPriorAuthRuntimeToolCatalog(toolDependencies),
     clock: time,
     idGenerator: createIds()
   };
@@ -162,8 +229,9 @@ function preparePacket(fixture) {
 test("M2 package exports runtime surface and keeps source boundary clean", () => {
   assert.equal(typeof createDoctorRuntime, "function");
   assert.equal(typeof executeRuntimeTool, "function");
-  assert.equal(typeof runDeterministicPriorAuthAgentTeam, "function");
   assert.equal(typeof SqliteRuntimeStore, "function");
+  assert.equal(typeof runDeterministicPriorAuthAgentTeam, "function");
+  assert.equal(typeof createPriorAuthRuntimeToolCatalog, "function");
 
   const declaration = readFileSync(
     resolve(process.cwd(), "packages/doctor-runtime/dist/index.d.ts"),
@@ -177,15 +245,28 @@ test("M2 package exports runtime surface and keeps source boundary clean", () =>
     "ApprovalRequest",
     "ApprovalDecision",
     "TraceEvent",
+    "RuntimeToolCatalog",
+    "RuntimeToolDefinition",
+    "RuntimeToolError"
+  ]) {
+    assert.ok(declaration.includes(exportedType), `Expected ${exportedType} export`);
+  }
+
+  const agentTeamDeclaration = readFileSync(
+    resolve(process.cwd(), "packages/prior-auth-agent-team/dist/index.d.ts"),
+    "utf8"
+  );
+  for (const exportedType of [
     "PriorAuthOrchestratorAgent",
     "RequirementDiscoveryAgent",
     "DocumentationAgent",
     "EvidenceAgent",
     "PacketAssemblyAgent",
     "ComplianceBoundaryAgent",
-    "runDeterministicPriorAuthAgentTeam"
+    "runDeterministicPriorAuthAgentTeam",
+    "createPriorAuthRuntimeToolCatalog"
   ]) {
-    assert.ok(declaration.includes(exportedType), `Expected ${exportedType} export`);
+    assert.ok(agentTeamDeclaration.includes(exportedType), `Expected ${exportedType} prior-auth agent-team export`);
   }
 
   const runtimeSource = sourceFiles(resolve(process.cwd(), "packages/doctor-runtime/src"))
@@ -193,7 +274,17 @@ test("M2 package exports runtime surface and keeps source boundary clean", () =>
     .map((path) => readFileSync(path, "utf8"))
     .join("\n");
 
-  for (const forbidden of ["apps/api", "../apps", "localhost", "127.0.0.1", "fetch(", "http.request", "https.request"]) {
+  for (const forbidden of [
+    "apps/api",
+    "../apps",
+    "localhost",
+    "127.0.0.1",
+    "fetch(",
+    "http.request",
+    "https.request",
+    "@open-prior-auth/doctor-toolnet",
+    "@open-prior-auth/prior-auth-core"
+  ]) {
     assert.ok(!runtimeSource.includes(forbidden), `Runtime source must not include ${forbidden}`);
   }
 });
@@ -246,6 +337,74 @@ test("SQLite runtime store creates required tables and persists ordered trace", 
   assert.deepEqual(trace.map((event) => event.type), ["test.first", "test.second"]);
   reopened.close();
 }));
+
+test("generic runtime catalog supports unguarded execution, approval, rejection, and approved failure", async () => {
+  const time = createClock();
+  const toolCatalog = createGenericToolCatalog();
+  const runtimeStore = new SqliteRuntimeStore(":memory:", time.clock);
+  const runtime = createDoctorRuntime({
+    runtimeStore,
+    toolCatalog,
+    clock: time,
+    idGenerator: createIds()
+  });
+
+  const read = await runtime.executeRuntimeTool({
+    toolName: "generic.read",
+    input: { value: "ok" },
+    callContext: { actorUserId: "generic-operator" }
+  });
+  assert.equal(read.ok, true);
+  assert.deepEqual(read.output, { echoed: { value: "ok" }, actor: "generic-operator" });
+
+  const pause = await runtime.executeRuntimeTool({
+    toolName: "generic.write",
+    input: { value: "needs approval" },
+    callContext: { actorUserId: "generic-operator" }
+  });
+  assert.equal(pause.ok, false);
+  assert.equal(pause.error.code, "APPROVAL_REQUIRED");
+  assert.equal(pause.approvalRequest.status, "pending");
+  assert.equal(toolCatalog.writes.length, 0);
+
+  const approved = await runtime.approveApprovalRequest({
+    approvalRequestId: pause.approvalRequest.id,
+    actorUserId: "generic-approver"
+  });
+  assert.equal(approved.ok, true);
+  assert.deepEqual(approved.output, { approvedInput: { value: "needs approval" } });
+  assert.equal(toolCatalog.writes.length, 1);
+
+  const rejectPause = await runtime.executeRuntimeTool({
+    toolName: "generic.write",
+    input: { value: "reject me" },
+    callContext: { actorUserId: "generic-operator" }
+  });
+  assert.equal(rejectPause.ok, false);
+  const rejected = await runtime.rejectApprovalRequest({
+    approvalRequestId: rejectPause.approvalRequest.id,
+    actorUserId: "generic-approver"
+  });
+  assert.equal(rejected.ok, false);
+  assert.equal(rejected.error.code, "APPROVAL_REJECTED");
+  assert.equal(toolCatalog.writes.length, 1);
+
+  const failPause = await runtime.executeRuntimeTool({
+    toolName: "generic.fail_after_approval",
+    input: { value: "boom" },
+    callContext: { actorUserId: "generic-operator" }
+  });
+  assert.equal(failPause.ok, false);
+  const failed = await runtime.approveApprovalRequest({
+    approvalRequestId: failPause.approvalRequest.id,
+    actorUserId: "generic-approver"
+  });
+  assert.equal(failed.ok, false);
+  assert.equal(failed.error.code, "RUNTIME_TOOL_EXECUTION_FAILED");
+  assert.match(failed.error.message, /approved generic tool failed/);
+
+  runtimeStore.close();
+});
 
 test("unguarded runtime tool executes through ToolNet and records durable trace", async () => {
   const fixture = createFixture();
@@ -463,12 +622,12 @@ test("approval execution releases runtime transaction before writing to same SQL
   });
   const runtime = createDoctorRuntime({
     runtimeStore,
-    toolDependencies: {
+    toolCatalog: createPriorAuthRuntimeToolCatalog({
       repository,
       store: priorAuthStore,
       clock: time,
       idGenerator: createIds()
-    },
+    }),
     clock: time,
     idGenerator: createIds()
   });

@@ -1,14 +1,3 @@
-import {
-  executeDoctorTool,
-  getDoctorToolDefinition,
-  submitPasClaimFhirMock,
-  type DoctorToolError,
-  type DoctorToolName
-} from "@open-prior-auth/doctor-toolnet";
-import {
-  saveQuestionnaireResponse,
-  submitMockPacket
-} from "@open-prior-auth/prior-auth-core";
 import type {
   AgentRun,
   AgentTask,
@@ -20,7 +9,8 @@ import type {
   RuntimeToolExecutionRequest,
   RuntimeToolExecutionResult,
   TaskPlan,
-  ToolCallRecord
+  ToolCallRecord,
+  RuntimeToolError
 } from "./types.js";
 
 let defaultIdCounter = 0;
@@ -40,12 +30,12 @@ export function createDoctorRuntime(dependencies: DoctorRuntimeDependencies): Do
   };
 }
 
-export async function executeRuntimeTool<Name extends DoctorToolName>(
-  request: RuntimeToolExecutionRequest<Name>,
+export async function executeRuntimeTool(
+  request: RuntimeToolExecutionRequest,
   dependencies: DoctorRuntimeDependencies
 ): Promise<RuntimeToolExecutionResult> {
   const actor = request.callContext?.actorUserId ?? "system";
-  const definition = getDoctorToolDefinition(request.toolName);
+  const definition = dependencies.toolCatalog.getToolDefinition(request.toolName);
 
   const prepared: RuntimeToolExecutionResult | PreparedExecution = dependencies.runtimeStore.transaction(() => {
     const { run, task } = ensureRunAndTask(request, dependencies);
@@ -123,7 +113,7 @@ export async function executeRuntimeTool<Name extends DoctorToolName>(
     return prepared;
   }
 
-  const toolResult = await executeDoctorTool({
+  const toolResult = await dependencies.toolCatalog.executeTool({
     toolName: request.toolName,
     input: request.input,
     callContext: {
@@ -131,7 +121,7 @@ export async function executeRuntimeTool<Name extends DoctorToolName>(
       agentRunId: prepared.run.id,
       agentTaskId: prepared.task.id
     }
-  }, dependencies.toolDependencies);
+  });
 
   return dependencies.runtimeStore.transaction(() => {
     const record: ToolCallRecord = {
@@ -285,7 +275,7 @@ async function decideApproval(
   }
 
   try {
-    const output = executeApprovedGuardedTool(prepared.approvalRequest, dependencies);
+    const output = await dependencies.toolCatalog.executeApprovedTool(prepared.approvalRequest);
     return dependencies.runtimeStore.transaction(() => {
       const approvedApproval: ApprovalRequest = {
         ...prepared.approvalRequest,
@@ -394,33 +384,6 @@ async function decideApproval(
   }
 }
 
-function executeApprovedGuardedTool(
-  approvalRequest: ApprovalRequest,
-  dependencies: DoctorRuntimeDependencies
-): unknown {
-  switch (approvalRequest.toolName) {
-    case "doctor.dtr.save_response":
-      return saveQuestionnaireResponse(
-        approvalRequest.input as Parameters<typeof saveQuestionnaireResponse>[0],
-        dependencies.toolDependencies.repository,
-        dependencies.toolDependencies.store
-      );
-    case "doctor.pas.submit_mock":
-      return submitMockPacket(
-        approvalRequest.input as Parameters<typeof submitMockPacket>[0],
-        dependencies.toolDependencies.repository,
-        dependencies.toolDependencies.store
-      );
-    case "doctor.pas.submit_claim_fhir_mock":
-      return submitPasClaimFhirMock(
-        approvalRequest.input as Parameters<typeof submitPasClaimFhirMock>[0],
-        dependencies.toolDependencies
-      );
-    default:
-      throw new Error(`Approval request ${approvalRequest.id} is not for a guarded runtime tool.`);
-  }
-}
-
 function ensureRunAndTask(
   request: RuntimeToolExecutionRequest,
   dependencies: DoctorRuntimeDependencies
@@ -465,7 +428,7 @@ function ensureRunAndTask(
   return { run, task };
 }
 
-function defaultTaskPlan(toolName: DoctorToolName): TaskPlan {
+function defaultTaskPlan(toolName: string): TaskPlan {
   return {
     objective: `Execute ${toolName}.`,
     steps: [`Call ${toolName}.`]
@@ -543,7 +506,7 @@ function generateId(dependencies: DoctorRuntimeDependencies, prefix: string): st
     ?? `runtime-${prefix}-${String(++defaultIdCounter).padStart(6, "0")}`;
 }
 
-function toRuntimeError(error: unknown): DoctorToolError {
+function toRuntimeError(error: unknown): RuntimeToolError {
   if (error instanceof Error) {
     return {
       code: "RUNTIME_TOOL_EXECUTION_FAILED",

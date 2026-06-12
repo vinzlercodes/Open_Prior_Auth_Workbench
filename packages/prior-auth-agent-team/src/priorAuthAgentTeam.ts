@@ -16,8 +16,8 @@ import type {
   DoctorRuntimeDependencies,
   RuntimeToolExecutionResult,
   TraceEvent
-} from "./types.js";
-import { approveApprovalRequest, executeRuntimeTool } from "./runtime.js";
+} from "@open-prior-auth/doctor-runtime";
+import { approveApprovalRequest, executeRuntimeTool } from "@open-prior-auth/doctor-runtime";
 
 export interface DeterministicPriorAuthAgentTeamRequest {
   workItemId?: string;

@@ -2,11 +2,13 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   executeRuntimeTool,
-  runDeterministicPriorAuthAgentTeam,
-  type DeterministicPriorAuthAgentTeamResult,
   type RuntimeToolExecutionResult,
   type TraceEvent
 } from "@open-prior-auth/doctor-runtime";
+import {
+  runDeterministicPriorAuthAgentTeam,
+  type DeterministicPriorAuthAgentTeamResult
+} from "@open-prior-auth/prior-auth-agent-team";
 import type { RequirementEvaluationResult } from "@open-prior-auth/shared-types";
 import { createHarness, promptInjectionText, repoPath } from "./harness.js";
 import { assertNoInternalHttpBoundaries, assertPromptInjectionTreatedAsData, assertSafetyClaims, assertToolPolicy, type EvalAssertion } from "./policy.js";

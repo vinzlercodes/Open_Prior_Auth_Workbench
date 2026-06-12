@@ -1,7 +1,10 @@
 import { createServer as createHttpServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { URL } from "node:url";
 import {
-  runDeterministicPriorAuthAgentTeam,
+  createPriorAuthRuntimeToolCatalog,
+  runDeterministicPriorAuthAgentTeam
+} from "@open-prior-auth/prior-auth-agent-team";
+import {
   SqliteRuntimeStore,
   type ApprovalRequest
 } from "@open-prior-auth/doctor-runtime";
@@ -486,10 +489,10 @@ async function runPriorAuthCockpitAgent(
       questionnaireApprovalActorUserId: "m5-scripted-approver"
     }, {
       runtimeStore,
-      toolDependencies: {
+      toolCatalog: createPriorAuthRuntimeToolCatalog({
         repository,
         store
-      }
+      })
     });
     const caseRoot = getPriorAuthorizationCase(result.workItemId, store);
     const questionnairePackage = getQuestionnairePackage({ workItemId: result.workItemId }, repository, store);
