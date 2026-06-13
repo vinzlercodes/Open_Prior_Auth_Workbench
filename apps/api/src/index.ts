@@ -5,5 +5,5 @@ const host = process.env.HOST ?? "127.0.0.1";
 const server = createServer();
 
 server.listen(port, host, () => {
-  console.log(`Open Prior Auth API listening on http://${host}:${port}`);
+  process.stdout.write(`Open Prior Auth API listening on http://${host}:${port}\n`);
 });

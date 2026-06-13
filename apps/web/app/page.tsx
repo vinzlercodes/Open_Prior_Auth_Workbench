@@ -388,15 +388,6 @@ function formatMoreInfo(value: MoreInfoRequest | undefined): string {
   return value.resolvedAt ? "Resolved" : "Open";
 }
 
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }).format(new Date(value));
-}
-
 function formatCaught(caught: unknown, fallback: string): string {
   return caught instanceof Error ? caught.message : fallback;
 }
