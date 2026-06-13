@@ -29,179 +29,68 @@ type BaseDoctorToolDefinition = Omit<
 >;
 
 const tools: readonly BaseDoctorToolDefinition[] = [
-  {
-    name: "doctor.case.get",
-    category: "case",
-    description: "Get the prior authorization case root for a work item.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputObjectSchema("PriorAuthorizationCase.")
-  },
-  {
-    name: "doctor.queue.list_work_items",
-    category: "queue",
-    description: "List operational work item queue rows.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: queueListInputSchema,
-    outputSchema: outputArraySchema("Work item queue rows.")
-  },
-  {
-    name: "doctor.case.get_status_timeline",
-    category: "case",
-    description: "Get status transition timeline for a work item.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputArraySchema("Status events.")
-  },
-  {
-    name: "doctor.case.get_audit_trace",
-    category: "case",
-    description: "Get audit trace events for a work item.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputArraySchema("Audit events.")
-  },
-  {
-    name: "doctor.evidence.list",
-    category: "evidence",
-    description: "List available and attached evidence for a work item.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputObjectSchema("EvidenceListResponse.")
-  },
-  {
-    name: "doctor.requirements.evaluate",
-    category: "requirements",
-    description: "Run local requirement evaluation and save the evaluation run.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: requirementsEvaluateInputSchema,
-    outputSchema: outputObjectSchema("RequirementEvaluationResult.")
-  },
-  {
-    name: "doctor.crd.discover_services",
-    category: "crd",
-    description: "List local non-conformant CDS Hooks CRD-shaped services.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: emptyInputSchema,
-    outputSchema: outputObjectSchema("CdsServicesResponse with explicit non-conformance metadata.")
-  },
-  {
-    name: "doctor.crd.invoke_service",
-    category: "crd",
-    description: "Invoke a local non-conformant CRD-shaped CDS Hooks service over requirement evaluation.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: crdInvokeInputSchema,
-    outputSchema: outputObjectSchema("CdsHooksResponse with local requirement evaluation card.")
-  },
-  {
-    name: "doctor.dtr.get_questionnaire_package",
-    category: "dtr",
-    description: "Get or initialize the local DTR questionnaire package for a work item.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputObjectSchema("QuestionnairePackage.")
-  },
-  {
-    name: "doctor.dtr.get_questionnaire_package_fhir",
-    category: "dtr",
-    description: "Get a local non-conformant FHIR Parameters-shaped DTR questionnaire package.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: workItemIdInputSchema,
-    outputSchema: outputObjectSchema("FHIR Parameters-shaped local DTR questionnaire package.")
-  },
-  {
-    name: "doctor.pas.build_packet",
-    category: "pas",
-    description: "Build a PAS-style local submission packet draft.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: packetBuildInputSchema,
-    outputSchema: outputObjectSchema("SubmissionPacket.")
-  },
-  {
-    name: "doctor.pas.build_claim_submit_bundle",
-    category: "pas",
-    description: "Build a local non-conformant FHIR Claim submit Bundle from a packet preview.",
-    riskLevel: "draft",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: packetBuildInputSchema,
-    outputSchema: outputObjectSchema("FHIR Claim submit Bundle wrapper.")
-  },
-  {
-    name: "doctor.dtr.save_response",
-    category: "dtr",
-    description: "Guarded questionnaire response save contract.",
-    riskLevel: "guarded_write",
-    approval: {
-      approvalRequired: true,
-      blockedCode: APPROVAL_EXECUTOR_REQUIRED,
-      reason: "Saving questionnaire responses changes case state and waits for M2 ApprovalGate."
-    },
-    executable: false,
-    inputSchema: questionnaireSaveInputSchema,
-    outputSchema: outputObjectSchema("Guarded tool error.")
-  },
-  {
-    name: "doctor.pas.submit_mock",
-    category: "pas",
-    description: "Guarded mock PAS submit contract.",
-    riskLevel: "guarded_submit",
-    approval: {
-      approvalRequired: true,
-      blockedCode: APPROVAL_EXECUTOR_REQUIRED,
-      reason: "Submitting packets changes payer-facing state and waits for M2 ApprovalGate."
-    },
-    executable: false,
-    inputSchema: packetSubmitInputSchema,
-    outputSchema: outputObjectSchema("Guarded tool error.")
-  },
-  {
-    name: "doctor.pas.submit_claim_fhir_mock",
-    category: "pas",
-    description: "Guarded local non-conformant FHIR Claim submit mock contract.",
-    riskLevel: "guarded_submit",
-    approval: {
-      approvalRequired: true,
-      blockedCode: APPROVAL_EXECUTOR_REQUIRED,
-      reason: "Submitting a standards-shaped Claim changes payer-facing state and requires ApprovalGate."
-    },
-    executable: false,
-    inputSchema: claimSubmitInputSchema,
-    outputSchema: outputObjectSchema("FHIR ClaimResponse Bundle wrapper.")
-  },
-  {
-    name: "doctor.pas.map_claim_response_to_runtime_receipt",
-    category: "pas",
-    description: "Map a local ClaimResponse Bundle into runtime receipt-shaped output without persisting state.",
-    riskLevel: "read",
-    approval: { approvalRequired: false },
-    executable: true,
-    inputSchema: claimResponseMapInputSchema,
-    outputSchema: outputObjectSchema("Runtime receipt-shaped ClaimResponse mapping.")
-  }
+  executableTool("doctor.case.get", "case", "Get the prior authorization case root for a work item.", "read", workItemIdInputSchema, outputObjectSchema("PriorAuthorizationCase.")),
+  executableTool("doctor.queue.list_work_items", "queue", "List operational work item queue rows.", "read", queueListInputSchema, outputArraySchema("Work item queue rows.")),
+  executableTool("doctor.case.get_status_timeline", "case", "Get status transition timeline for a work item.", "read", workItemIdInputSchema, outputArraySchema("Status events.")),
+  executableTool("doctor.case.get_audit_trace", "case", "Get audit trace events for a work item.", "read", workItemIdInputSchema, outputArraySchema("Audit events.")),
+  executableTool("doctor.evidence.list", "evidence", "List available and attached evidence for a work item.", "read", workItemIdInputSchema, outputObjectSchema("EvidenceListResponse.")),
+  executableTool("doctor.requirements.evaluate", "requirements", "Run local requirement evaluation and save the evaluation run.", "draft", requirementsEvaluateInputSchema, outputObjectSchema("RequirementEvaluationResult.")),
+  executableTool("doctor.crd.discover_services", "crd", "List local non-conformant CDS Hooks CRD-shaped services.", "read", emptyInputSchema, outputObjectSchema("CdsServicesResponse with explicit non-conformance metadata.")),
+  executableTool("doctor.crd.invoke_service", "crd", "Invoke a local non-conformant CRD-shaped CDS Hooks service over requirement evaluation.", "draft", crdInvokeInputSchema, outputObjectSchema("CdsHooksResponse with local requirement evaluation card.")),
+  executableTool("doctor.dtr.get_questionnaire_package", "dtr", "Get or initialize the local DTR questionnaire package for a work item.", "draft", workItemIdInputSchema, outputObjectSchema("QuestionnairePackage.")),
+  executableTool("doctor.dtr.get_questionnaire_package_fhir", "dtr", "Get a local non-conformant FHIR Parameters-shaped DTR questionnaire package.", "draft", workItemIdInputSchema, outputObjectSchema("FHIR Parameters-shaped local DTR questionnaire package.")),
+  executableTool("doctor.pas.build_packet", "pas", "Build a PAS-style local submission packet draft.", "draft", packetBuildInputSchema, outputObjectSchema("SubmissionPacket.")),
+  executableTool("doctor.pas.build_claim_submit_bundle", "pas", "Build a local non-conformant FHIR Claim submit Bundle from a packet preview.", "draft", packetBuildInputSchema, outputObjectSchema("FHIR Claim submit Bundle wrapper.")),
+  guardedTool("doctor.dtr.save_response", "dtr", "Guarded questionnaire response save contract.", "guarded_write", questionnaireSaveInputSchema, outputObjectSchema("Guarded tool error."), "Saving questionnaire responses changes case state and waits for M2 ApprovalGate."),
+  guardedTool("doctor.pas.submit_mock", "pas", "Guarded mock PAS submit contract.", "guarded_submit", packetSubmitInputSchema, outputObjectSchema("Guarded tool error."), "Submitting packets changes payer-facing state and waits for M2 ApprovalGate."),
+  guardedTool("doctor.pas.submit_claim_fhir_mock", "pas", "Guarded local non-conformant FHIR Claim submit mock contract.", "guarded_submit", claimSubmitInputSchema, outputObjectSchema("FHIR ClaimResponse Bundle wrapper."), "Submitting a standards-shaped Claim changes payer-facing state and requires ApprovalGate."),
+  executableTool("doctor.pas.map_claim_response_to_runtime_receipt", "pas", "Map a local ClaimResponse Bundle into runtime receipt-shaped output without persisting state.", "read", claimResponseMapInputSchema, outputObjectSchema("Runtime receipt-shaped ClaimResponse mapping."))
 ];
+
+function executableTool(
+  name: DoctorToolName,
+  category: BaseDoctorToolDefinition["category"],
+  description: string,
+  riskLevel: BaseDoctorToolDefinition["riskLevel"],
+  inputSchema: BaseDoctorToolDefinition["inputSchema"],
+  outputSchema: BaseDoctorToolDefinition["outputSchema"]
+): BaseDoctorToolDefinition {
+  return {
+    name,
+    category,
+    description,
+    riskLevel,
+    approval: { approvalRequired: false },
+    executable: true,
+    inputSchema,
+    outputSchema
+  };
+}
+
+function guardedTool(
+  name: DoctorToolName,
+  category: BaseDoctorToolDefinition["category"],
+  description: string,
+  riskLevel: BaseDoctorToolDefinition["riskLevel"],
+  inputSchema: BaseDoctorToolDefinition["inputSchema"],
+  outputSchema: BaseDoctorToolDefinition["outputSchema"],
+  reason: string
+): BaseDoctorToolDefinition {
+  return {
+    name,
+    category,
+    description,
+    riskLevel,
+    approval: {
+      approvalRequired: true,
+      blockedCode: APPROVAL_EXECUTOR_REQUIRED,
+      reason
+    },
+    executable: false,
+    inputSchema,
+    outputSchema
+  };
+}
 
 const enrichedTools = tools.map((tool) => ({
   ...tool,
