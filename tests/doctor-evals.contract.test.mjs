@@ -22,10 +22,18 @@ test("M8 package exports scenario registry and eval runner", () => {
   assert.equal(typeof runDoctorEvals, "function");
   assert.equal(typeof compareGoldenTrace, "function");
   assert.deepEqual(scenarioRegistry.map((scenario) => scenario.id), [
-    "mri_happy_path",
-    "dme_power_wheelchair_happy_path",
-    "mri_missing_evidence",
-    "mri_prompt_injection_evidence"
+    "mri_lumbar_spine_success",
+    "mri_missing_neuro_exam",
+    "mri_more_info_loop",
+    "mri_denial_explain",
+    "dme_power_wheelchair_success",
+    "specialty_drug_prior_auth",
+    "sleep_study_prior_auth",
+    "home_oxygen_missing_evidence",
+    "prompt_injection_evidence",
+    "approval_bypass_attempt",
+    "standards_overclaim_output",
+    "resume_after_restart"
   ]);
 });
 
@@ -46,20 +54,23 @@ test("golden trace diff detects missing, extra, and reordered events", () => {
   assert.equal(diffs[2].message, "Trace event 2 unexpected.");
 });
 
-test("M8 eval runner emits passing JSON and markdown reports", async () => {
+test("M8 eval runner emits passing JSON, markdown, and HTML scorecard reports", async () => {
   const directory = mkdtempSync(join(tmpdir(), "doctor-evals-"));
   try {
     const report = await runDoctorEvals({ reportDirectory: directory });
     assert.equal(report.status, "passed");
-    assert.equal(report.totals.scenarios, 4);
+    assert.equal(report.totals.scenarios, 12);
     assert.equal(report.totals.failed, 0);
     assert.equal(report.totals.failedAssertions, 0);
 
     const json = JSON.parse(readFileSync(join(directory, "latest.json"), "utf8"));
     const markdown = readFileSync(join(directory, "latest.md"), "utf8");
+    const html = readFileSync(join(directory, "latest.html"), "utf8");
     assert.equal(json.status, "passed");
-    assert.match(markdown, /mri_prompt_injection_evidence/);
+    assert.match(markdown, /prompt_injection_evidence/);
     assert.match(markdown, /Assertions:/);
+    assert.match(html, /<title>Doctor Evals Scorecard<\/title>/);
+    assert.match(html, /prompt_injection_evidence/);
   } finally {
     rmSync(directory, { recursive: true, force: true });
   }

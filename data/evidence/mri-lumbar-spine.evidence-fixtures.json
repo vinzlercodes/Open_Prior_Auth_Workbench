@@ -9,6 +9,9 @@
       "contentMode": "inline-base64",
       "sizeBytes": 112,
       "sha256": "2a9179ddcee86e45b7b7e403dc71842b97b3dc69c863f7ed61ae3708c1162886",
+      "supportsRequirementIds": ["conservative-treatment-evidence", "conservative-therapy-6-weeks"],
+      "evidenceStrength": "strong",
+      "citedFields": ["therapyDuration", "failedConservativeCare"],
       "base64Data": "UGF0aWVudCBjb21wbGV0ZWQgc2l4IHdlZWtzIG9mIHN1cGVydmlzZWQgcGh5c2ljYWwgdGhlcmFweSBhbmQgTlNBSUQgdGhlcmFweSB3aXRoIHBlcnNpc3RlbnQgcmFkaWN1bGFyIHN5bXB0b21zLg=="
     },
     {
@@ -19,6 +22,9 @@
       "contentMode": "local-binary",
       "sizeBytes": 89,
       "sha256": "3946ca2611690a1961dac81080d545d9742fb99810277518747ad51d8fa8917c",
+      "supportsRequirementIds": ["conservative-treatment-evidence"],
+      "evidenceStrength": "weak",
+      "citedFields": ["medicalNecessityRationale"],
       "base64Data": "THVtYmFyIE1SSSBwcmlvciBhdXRob3JpemF0aW9uIG5vdGU6IHBlcnNpc3RlbnQgc3ltcHRvbXMgZGVzcGl0ZSBjb25zZXJ2YXRpdmUgbWFuYWdlbWVudC4="
     },
     {

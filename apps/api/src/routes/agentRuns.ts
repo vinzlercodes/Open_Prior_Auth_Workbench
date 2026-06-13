@@ -17,6 +17,7 @@ import {
   getPriorAuthorizationCase,
   getQuestionnairePackage,
   listEvidence,
+  mapEvidenceToRequirements,
   OperationOutcomeError,
   type PriorAuthStore
 } from "@open-prior-auth/prior-auth-core";
@@ -96,13 +97,17 @@ function buildEvidenceBoard(
     serviceLine: workItem.serviceLine
   });
   const requirements = rulePack?.rules[0]?.requiredClinicalContext ?? workItem.requirementResult.missingData;
+  const mappings = mapEvidenceToRequirements({ workItem, evidence });
 
   return requirements.map((requirement) => {
+    const rowMappings = mappings.filter((mapping) => mapping.requirementId === requirement.code);
     const matchingAttachments = evidence.attachments.filter((attachment) =>
       evidenceMatchesRequirement(attachment.title, attachment.filename, requirement.code, requirement.resourceType)
+      || rowMappings.some((mapping) => mapping.evidenceItemId === attachment.id || mapping.evidenceItemId === attachment.fixtureId)
     );
     const matchingFixtures = evidence.availableFixtures.filter((fixture) =>
       evidenceMatchesRequirement(fixture.title, fixture.filename, requirement.code, requirement.resourceType)
+      || rowMappings.some((mapping) => mapping.evidenceItemId === fixture.fixtureId)
     );
     const packetAttachments = matchingAttachments.filter((attachment) => attachment.status === "included-in-packet");
     const acceptedAttachments = matchingAttachments.filter((attachment) => attachment.status === "accepted");
@@ -127,9 +132,31 @@ function buildEvidenceBoard(
                 : "satisfied",
       sourceLabel: sourceLabelForRequirement(requirement.resourceType, workItem.requirementResult.requestSummary),
       evidenceAttachmentIds: matchingAttachments.map((attachment) => attachment.id),
-      fixtureIds: matchingFixtures.map((fixture) => fixture.fixtureId)
+      fixtureIds: matchingFixtures.map((fixture) => fixture.fixtureId),
+      mappings: rowMappings,
+      strongestEvidence: strongestEvidence(rowMappings),
+      rationale: rowMappings.find((mapping) => mapping.strength !== "missing")?.rationale ?? rowMappings[0]?.rationale,
+      citedFields: [...new Set(rowMappings.flatMap((mapping) => mapping.citedFields))]
     };
   });
+}
+
+function strongestEvidence(
+  mappings: ReturnType<typeof mapEvidenceToRequirements>
+): "strong" | "weak" | "contradictory" | "missing" | undefined {
+  if (mappings.some((mapping) => mapping.strength === "strong")) {
+    return "strong";
+  }
+  if (mappings.some((mapping) => mapping.strength === "weak")) {
+    return "weak";
+  }
+  if (mappings.some((mapping) => mapping.strength === "contradictory")) {
+    return "contradictory";
+  }
+  if (mappings.some((mapping) => mapping.strength === "missing")) {
+    return "missing";
+  }
+  return undefined;
 }
 
 function evidenceMatchesRequirement(

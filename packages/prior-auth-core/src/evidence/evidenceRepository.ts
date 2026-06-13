@@ -41,6 +41,9 @@ interface EvidenceFixture {
   sha256: string;
   base64Data?: string;
   bundle?: FhirBundle;
+  supportsRequirementIds?: string[];
+  evidenceStrength?: EvidenceFixtureSummary["evidenceStrength"];
+  citedFields?: string[];
 }
 
 export class EvidenceRepository {
@@ -275,7 +278,10 @@ function toFixtureSummary(fixture: EvidenceFixture): EvidenceFixtureSummary {
     contentType: fixture.contentType,
     sizeBytes: fixture.sizeBytes,
     sha256: fixture.sha256,
-    contentMode: fixture.contentMode
+    contentMode: fixture.contentMode,
+    supportsRequirementIds: fixture.supportsRequirementIds,
+    evidenceStrength: fixture.evidenceStrength,
+    citedFields: fixture.citedFields
   };
 }
 
