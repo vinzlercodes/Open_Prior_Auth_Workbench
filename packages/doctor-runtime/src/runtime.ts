@@ -299,17 +299,7 @@ async function decideApproval(
   try {
     const output = await dependencies.toolCatalog.executeApprovedTool(prepared.approvalRequest);
     return dependencies.runtimeStore.transaction(() => {
-      const approvedApproval: ApprovalRequest = {
-        ...prepared.approvalRequest,
-        status: "approved",
-        decision: {
-          approvalRequestId: prepared.approvalRequest.id,
-          decision: "approved",
-          decidedBy: prepared.actor,
-          decidedAt: prepared.decidedAt,
-          reason: request.reason
-        }
-      };
+      const approvedApproval = approveRequest(prepared, request.reason);
       const succeededRecord: ToolCallRecord = {
         ...prepared.record,
         status: "succeeded",
@@ -321,26 +311,10 @@ async function decideApproval(
       dependencies.runtimeStore.saveToolCallRecord(succeededRecord);
       const resumedRun = saveRunStatus(prepared.run, "running", dependencies);
       const completedTask = saveTaskStatus(prepared.task, "completed", dependencies, succeededRecord.completedAt);
-      dependencies.runtimeStore.recordTraceEvent({
-        runId: prepared.run.id,
-        taskId: prepared.task.id,
-        toolCallId: prepared.record.callId,
-        approvalRequestId: prepared.approvalRequest.id,
-        type: "approval.approved",
-        actor: prepared.actor,
-        message: `Approval approved for ${prepared.approvalRequest.toolName}.`,
-        data: { toolName: prepared.approvalRequest.toolName }
-      });
-      dependencies.runtimeStore.recordTraceEvent({
-        runId: prepared.run.id,
-        taskId: prepared.task.id,
-        toolCallId: prepared.record.callId,
-        approvalRequestId: prepared.approvalRequest.id,
-        type: "tool_call.succeeded",
-        actor: prepared.actor,
-        message: `${prepared.approvalRequest.toolName} completed after approval.`,
-        data: { toolName: prepared.approvalRequest.toolName }
-      });
+      recordApprovalApproved(prepared, dependencies);
+      recordApprovedToolTrace(prepared, "tool_call.succeeded", `${prepared.approvalRequest.toolName} completed after approval.`, {
+        toolName: prepared.approvalRequest.toolName
+      }, dependencies);
       return {
         ok: true,
         run: resumedRun,
@@ -353,17 +327,7 @@ async function decideApproval(
   } catch (error) {
     const runtimeError = toRuntimeError(error);
     return dependencies.runtimeStore.transaction(() => {
-      const approvedApproval: ApprovalRequest = {
-        ...prepared.approvalRequest,
-        status: "approved",
-        decision: {
-          approvalRequestId: prepared.approvalRequest.id,
-          decision: "approved",
-          decidedBy: prepared.actor,
-          decidedAt: prepared.decidedAt,
-          reason: request.reason
-        }
-      };
+      const approvedApproval = approveRequest(prepared, request.reason);
       const failedRecord: ToolCallRecord = {
         ...prepared.record,
         status: "failed",
@@ -374,26 +338,10 @@ async function decideApproval(
       dependencies.runtimeStore.saveToolCallRecord(failedRecord);
       const failedRun = saveRunStatus(prepared.run, "failed", dependencies, failedRecord.completedAt);
       const failedTask = saveTaskStatus(prepared.task, "failed", dependencies, failedRecord.completedAt);
-      dependencies.runtimeStore.recordTraceEvent({
-        runId: prepared.run.id,
-        taskId: prepared.task.id,
-        toolCallId: prepared.record.callId,
-        approvalRequestId: prepared.approvalRequest.id,
-        type: "approval.approved",
-        actor: prepared.actor,
-        message: `Approval approved for ${prepared.approvalRequest.toolName}.`,
-        data: { toolName: prepared.approvalRequest.toolName }
-      });
-      dependencies.runtimeStore.recordTraceEvent({
-        runId: prepared.run.id,
-        taskId: prepared.task.id,
-        toolCallId: prepared.record.callId,
-        approvalRequestId: prepared.approvalRequest.id,
-        type: "tool_call.failed",
-        actor: prepared.actor,
-        message: `${prepared.approvalRequest.toolName} failed after approval.`,
-        data: { error: runtimeError }
-      });
+      recordApprovalApproved(prepared, dependencies);
+      recordApprovedToolTrace(prepared, "tool_call.failed", `${prepared.approvalRequest.toolName} failed after approval.`, {
+        error: runtimeError
+      }, dependencies);
       return {
         ok: false,
         run: failedRun,
@@ -404,6 +352,48 @@ async function decideApproval(
       };
     });
   }
+}
+
+function approveRequest(prepared: ApprovedApprovalPreparation, reason: string | undefined): ApprovalRequest {
+  return {
+    ...prepared.approvalRequest,
+    status: "approved",
+    decision: {
+      approvalRequestId: prepared.approvalRequest.id,
+      decision: "approved",
+      decidedBy: prepared.actor,
+      decidedAt: prepared.decidedAt,
+      reason
+    }
+  };
+}
+
+function recordApprovalApproved(
+  prepared: ApprovedApprovalPreparation,
+  dependencies: DoctorRuntimeDependencies
+): void {
+  recordApprovedToolTrace(prepared, "approval.approved", `Approval approved for ${prepared.approvalRequest.toolName}.`, {
+    toolName: prepared.approvalRequest.toolName
+  }, dependencies);
+}
+
+function recordApprovedToolTrace(
+  prepared: ApprovedApprovalPreparation,
+  type: "approval.approved" | "tool_call.succeeded" | "tool_call.failed",
+  message: string,
+  data: Record<string, unknown>,
+  dependencies: DoctorRuntimeDependencies
+): void {
+  dependencies.runtimeStore.recordTraceEvent({
+    runId: prepared.run.id,
+    taskId: prepared.task.id,
+    toolCallId: prepared.record.callId,
+    approvalRequestId: prepared.approvalRequest.id,
+    type,
+    actor: prepared.actor,
+    message,
+    data
+  });
 }
 
 function ensureRunAndTask(

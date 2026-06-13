@@ -96,21 +96,11 @@ export class OperationsService {
 
   requestMoreInfo(workItemId: string, input: MoreInfoRequestCreateRequest): MoreInfoRequest {
     return this.store.transaction(() => {
-      const workItem = this.requireWorkItem(workItemId);
-      if (TERMINAL_STATUSES.includes(workItem.status)) {
-        throw new OperationOutcomeError(
-          409,
-          "conflict",
-          `Work item ${workItem.id} is terminal and cannot receive a more-info request. Current status: ${workItem.status}.`
-        );
-      }
-      if (workItem.status !== "submitted") {
-        throw new OperationOutcomeError(
-          409,
-          "conflict",
-          `Work item ${workItem.id} must be submitted or payer-pended before requesting more information. Current status: ${workItem.status}.`
-        );
-      }
+      this.requireSubmittedWorkItem(
+        workItemId,
+        "receive a more-info request",
+        (workItem) => `Work item ${workItem.id} must be submitted or payer-pended before requesting more information. Current status: ${workItem.status}.`
+      );
       if (!input.message || !Array.isArray(input.requestedItems) || input.requestedItems.length === 0) {
         throw new OperationOutcomeError(400, "required", "message and at least one requested item are required.");
       }
@@ -129,22 +119,12 @@ export class OperationsService {
 
   recordPayerStatus(workItemId: string, input: PayerStatusRecordRequest): PayerUpdate {
     return this.store.transaction(() => {
-      const workItem = this.requireWorkItem(workItemId);
+      const workItem = this.requireSubmittedWorkItem(
+        workItemId,
+        "accept payer updates",
+        (candidate) => `Work item ${candidate.id} must be submitted before recording payer status. Current status: ${candidate.status}.`
+      );
       const actor = input.actor ?? "mock-payer";
-      if (TERMINAL_STATUSES.includes(workItem.status)) {
-        throw new OperationOutcomeError(
-          409,
-          "conflict",
-          `Work item ${workItem.id} is terminal and cannot accept payer updates. Current status: ${workItem.status}.`
-        );
-      }
-      if (workItem.status !== "submitted") {
-        throw new OperationOutcomeError(
-          409,
-          "conflict",
-          `Work item ${workItem.id} must be submitted before recording payer status. Current status: ${workItem.status}.`
-        );
-      }
       if (input.status === "denied" && !input.reason) {
         throw new OperationOutcomeError(400, "required", "A structured denial reason is required for denied payer updates.");
       }
@@ -220,6 +200,29 @@ export class OperationsService {
     const workItem = this.store.getWorkItem(workItemId);
     if (!workItem) {
       throw new OperationOutcomeError(404, "not-found", `Work item not found: ${workItemId}`);
+    }
+    return workItem;
+  }
+
+  private requireSubmittedWorkItem(
+    workItemId: string,
+    action: string,
+    notSubmittedMessage: (workItem: WorkItem) => string
+  ): WorkItem {
+    const workItem = this.requireWorkItem(workItemId);
+    if (TERMINAL_STATUSES.includes(workItem.status)) {
+      throw new OperationOutcomeError(
+        409,
+        "conflict",
+        `Work item ${workItem.id} is terminal and cannot ${action}. Current status: ${workItem.status}.`
+      );
+    }
+    if (workItem.status !== "submitted") {
+      throw new OperationOutcomeError(
+        409,
+        "conflict",
+        notSubmittedMessage(workItem)
+      );
     }
     return workItem;
   }
