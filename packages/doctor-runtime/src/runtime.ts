@@ -49,6 +49,19 @@ export async function executeRuntimeTool(
       message: `Started ${request.toolName}.`,
       data: { toolName: request.toolName }
     });
+    dependencies.runtimeStore.recordTraceEvent({
+      runId: run.id,
+      taskId: task.id,
+      type: "policy.checked",
+      actor,
+      message: `Policy checked for ${request.toolName}.`,
+      data: {
+        toolName: request.toolName,
+        riskLevel: definition.riskLevel,
+        approvalRequired: definition.approval.approvalRequired,
+        executable: definition.executable
+      }
+    });
 
     if (definition.approval.approvalRequired) {
       const callId = generateId(dependencies, "tool-call");
@@ -71,13 +84,21 @@ export async function executeRuntimeTool(
         runId: run.id,
         taskId: task.id,
         toolCallId: callId,
+        caseId: caseIdFromInput(request.input),
+        requestedByAgent: actor,
         toolName: definition.name,
         riskLevel: definition.riskLevel,
         status: "pending",
         reason: definition.approval.reason ?? "Tool requires human approval.",
         requestedBy: actor,
         requestedAt: nowIso(dependencies),
-        input: request.input
+        input: request.input,
+        proposedInput: request.input,
+        beforeState: null,
+        expectedAfterState: {
+          toolName: definition.name,
+          riskLevel: definition.riskLevel
+        }
       };
       const pausedRun = saveRunStatus(run, "waiting_for_human", dependencies);
       const pausedTask = saveTaskStatus(task, "waiting_for_human", dependencies);
@@ -226,6 +247,7 @@ async function decideApproval(
       const rejectedApproval: ApprovalRequest = {
         ...approvalRequest,
         status: "rejected",
+        rejectionReason: request.reason,
         decision: {
           approvalRequestId: approvalRequest.id,
           decision: "rejected",
@@ -499,6 +521,18 @@ function requireApprovalRequest(approvalRequestId: string, dependencies: DoctorR
 
 function nowIso(dependencies: DoctorRuntimeDependencies): string {
   return dependencies.clock?.nowIso() ?? dependencies.runtimeStore.nowIso();
+}
+
+function caseIdFromInput(input: unknown): string | undefined {
+  if (typeof input !== "object" || input === null) {
+    return undefined;
+  }
+  const record = input as Record<string, unknown>;
+  return typeof record.caseId === "string"
+    ? record.caseId
+    : typeof record.workItemId === "string"
+      ? record.workItemId
+      : undefined;
 }
 
 function generateId(dependencies: DoctorRuntimeDependencies, prefix: string): string {

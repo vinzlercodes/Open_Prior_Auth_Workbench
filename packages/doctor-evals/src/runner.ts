@@ -180,6 +180,7 @@ function writeReport(report: DoctorEvalReport, directory: string): void {
   mkdirSync(directory, { recursive: true });
   writeFileSync(resolve(directory, "latest.json"), `${JSON.stringify(report, null, 2)}\n`);
   writeFileSync(resolve(directory, "latest.md"), markdownReport(report));
+  writeFileSync(resolve(directory, "latest.html"), htmlReport(report));
 }
 
 function markdownReport(report: DoctorEvalReport): string {
@@ -210,4 +211,45 @@ function markdownReport(report: DoctorEvalReport): string {
   lines.push(...(failures.length > 0 ? failures : ["- None"]));
   lines.push("");
   return `${lines.join("\n")}\n`;
+}
+
+function htmlReport(report: DoctorEvalReport): string {
+  const rows = report.scenarios.map((scenario) => {
+    const passedAssertions = scenario.assertions.filter((assertion) => assertion.status === "passed").length;
+    return `<tr><td>${escapeHtml(scenario.scenarioId)}</td><td>${scenario.status}</td><td>${scenario.evaluationStatus}</td><td>${passedAssertions}/${scenario.assertions.length}</td><td>${scenario.traceDiffs.length}</td></tr>`;
+  }).join("\n");
+  return `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Doctor Evals Scorecard</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; color: #17202a; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #d5d8dc; padding: 0.5rem; text-align: left; }
+    th { background: #f4f6f7; }
+  </style>
+</head>
+<body>
+  <h1>Doctor Evals Scorecard</h1>
+  <p>Status: <strong>${report.status}</strong></p>
+  <p>Scenarios: ${report.totals.passed}/${report.totals.scenarios} passed</p>
+  <p>Assertions: ${report.totals.assertions - report.totals.failedAssertions}/${report.totals.assertions} passed</p>
+  <table>
+    <thead><tr><th>Scenario</th><th>Status</th><th>Evaluation</th><th>Assertions</th><th>Trace diffs</th></tr></thead>
+    <tbody>
+${rows}
+    </tbody>
+  </table>
+</body>
+</html>
+`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll("\"", "&quot;");
 }

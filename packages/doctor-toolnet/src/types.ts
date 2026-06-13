@@ -46,6 +46,9 @@ export type DoctorToolName =
 export type DoctorToolCategory = "case" | "queue" | "evidence" | "requirements" | "crd" | "dtr" | "pas";
 
 export type DoctorToolRiskLevel = "read" | "draft" | "guarded_write" | "guarded_submit";
+export type DoctorToolSideEffect = "none" | "case-state" | "file-write" | "external-call";
+export type DoctorToolIdempotency = "required" | "recommended" | "not-applicable";
+export type DoctorToolMcpExposure = "hidden" | "read-only" | "approval-gated";
 
 export type DoctorToolCallStatus = "succeeded" | "failed" | "blocked";
 
@@ -74,6 +77,11 @@ export interface DoctorToolDefinition {
   executable: boolean;
   inputSchema: DoctorToolSchema;
   outputSchema: DoctorToolSchema;
+  sideEffect: DoctorToolSideEffect;
+  idempotency: DoctorToolIdempotency;
+  mcpExposure: DoctorToolMcpExposure;
+  allowedAgents?: readonly string[];
+  standardsCapabilityId?: string;
 }
 
 export interface DoctorToolCallRecord {

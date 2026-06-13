@@ -13,13 +13,18 @@
   ],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
+    "check": "npm run typecheck && npm test && npm run evals && npm run package-boundaries",
     "db:migrate": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/db.js migrate",
     "db:reset": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/db.js reset",
     "demo:seed": "npm run build -w @open-prior-auth/api && node apps/api/dist/scripts/demoSeed.js",
     "dev:api": "npm run dev -w @open-prior-auth/api",
+    "dev:mcp": "npm run dev -w @open-prior-auth/mcp-server",
+    "dev:worker": "npm run dev -w @open-prior-auth/worker",
     "dev:web": "npm run dev -w @open-prior-auth/web",
     "evals": "npm run evals -w @open-prior-auth/doctor-evals",
-    "test": "npm run build -w @open-prior-auth/shared-types && npm run build -w @open-prior-auth/prior-auth-core && npm run build -w @open-prior-auth/doctor-toolnet && npm run build -w @open-prior-auth/doctor-runtime && npm run build -w @open-prior-auth/prior-auth-agent-team && npm run build -w @open-prior-auth/doctor-evals && npm run build -w @open-prior-auth/api && node --test tests/*.test.mjs",
+    "evals:report": "npm run evals -w @open-prior-auth/doctor-evals",
+    "package-boundaries": "npm run build -w @open-prior-auth/doctor-toolnet && npm run build -w @open-prior-auth/doctor-runtime && node --test tests/package-boundaries.contract.test.mjs",
+    "test": "npm run build -w @open-prior-auth/shared-types && npm run build -w @open-prior-auth/prior-auth-core && npm run build -w @open-prior-auth/doctor-policy && npm run build -w @open-prior-auth/doctor-standards && npm run build -w @open-prior-auth/doctor-workflow && npm run build -w @open-prior-auth/doctor-toolnet && npm run build -w @open-prior-auth/doctor-runtime && npm run build -w @open-prior-auth/prior-auth-agent-team && npm run build -w @open-prior-auth/doctor-mcp && npm run build -w @open-prior-auth/doctor-evals && npm run build -w @open-prior-auth/api && npm run build -w @open-prior-auth/mcp-server && npm run build -w @open-prior-auth/worker && node --test tests/*.test.mjs",
     "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "devDependencies": {

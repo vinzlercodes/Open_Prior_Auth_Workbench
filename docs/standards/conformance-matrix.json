@@ -1,0 +1,24 @@
+[
+  {
+    "id": "smart-discovery",
+    "route": "/.well-known/smart-configuration",
+    "internalTool": "local-standards.launch.smartConfiguration",
+    "standardFamily": "SMART",
+    "supportedFixtureFields": ["authorization_endpoint", "token_endpoint", "capabilities"],
+    "unsupportedProductionRequirements": ["OAuth client registration", "token issuance", "real EHR launch"],
+    "operationOutcomeBehavior": "Read-only discovery returns explicit local non-conformance metadata.",
+    "testFixturePath": "data/standards/smart-discovery.local.json",
+    "conformanceClaimAllowed": false
+  },
+  {
+    "id": "pas-claim-submit",
+    "route": "/fhir/Claim/$submit",
+    "internalTool": "doctor.pas.submit_claim_fhir_mock",
+    "standardFamily": "PAS",
+    "supportedFixtureFields": ["Claim", "ClaimResponse", "Bundle"],
+    "unsupportedProductionRequirements": ["X12 278", "payer transport", "PAS certification"],
+    "operationOutcomeBehavior": "Local mock submit returns ClaimResponse-shaped bundle or OperationOutcome-like error.",
+    "testFixturePath": "data/standards/pas-claim-submit.bundle.json",
+    "conformanceClaimAllowed": false
+  }
+]

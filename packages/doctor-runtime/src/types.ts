@@ -2,7 +2,17 @@ export type AgentRunStatus = "running" | "waiting_for_human" | "completed" | "re
 export type AgentTaskStatus = "pending" | "running" | "waiting_for_human" | "completed" | "rejected" | "failed";
 export type RuntimeExternalToolCallStatus = "succeeded" | "failed" | "blocked";
 export type RuntimeToolCallStatus = RuntimeExternalToolCallStatus | "waiting_for_approval" | "rejected";
-export type ApprovalRequestStatus = "pending" | "approved" | "rejected";
+export type ApprovalRequestStatus =
+  | "pending"
+  | "requested"
+  | "viewed"
+  | "approved"
+  | "rejected"
+  | "expired"
+  | "superseded"
+  | "executing"
+  | "executed"
+  | "execution_failed";
 export type ApprovalDecisionValue = "approved" | "rejected";
 
 export interface RuntimeToolApprovalMetadata {
@@ -112,6 +122,8 @@ export interface ApprovalRequest {
   runId: string;
   taskId: string;
   toolCallId: string;
+  caseId?: string;
+  requestedByAgent?: string;
   toolName: string;
   riskLevel: string;
   status: ApprovalRequestStatus;
@@ -120,6 +132,10 @@ export interface ApprovalRequest {
   requestedAt: string;
   decision?: ApprovalDecision;
   input: unknown;
+  proposedInput?: unknown;
+  beforeState?: unknown;
+  expectedAfterState?: unknown;
+  rejectionReason?: string;
 }
 
 export interface TraceEvent {

@@ -13,9 +13,22 @@ import {
   requirementsEvaluateInputSchema,
   workItemIdInputSchema
 } from "./schemas.js";
-import type { DoctorToolDefinition, DoctorToolName } from "./types.js";
+import type {
+  DoctorToolDefinition,
+  DoctorToolIdempotency,
+  DoctorToolMcpExposure,
+  DoctorToolName,
+  DoctorToolSideEffect
+} from "./types.js";
 
-const tools: readonly DoctorToolDefinition[] = [
+const priorAuthAgents = ["orchestrator", "requirement", "documentation", "evidence", "packet", "compliance"] as const;
+
+type BaseDoctorToolDefinition = Omit<
+  DoctorToolDefinition,
+  "sideEffect" | "idempotency" | "mcpExposure" | "allowedAgents" | "standardsCapabilityId"
+>;
+
+const tools: readonly BaseDoctorToolDefinition[] = [
   {
     name: "doctor.case.get",
     category: "case",
@@ -190,14 +203,61 @@ const tools: readonly DoctorToolDefinition[] = [
   }
 ];
 
+const enrichedTools = tools.map((tool) => ({
+  ...tool,
+  sideEffect: sideEffectFor(tool.name),
+  idempotency: idempotencyFor(tool.name),
+  mcpExposure: mcpExposureFor(tool),
+  allowedAgents: priorAuthAgents,
+  standardsCapabilityId: standardsCapabilityIdFor(tool.name)
+})) satisfies readonly DoctorToolDefinition[];
+
 export function listDoctorTools(): readonly DoctorToolDefinition[] {
-  return tools;
+  return enrichedTools;
 }
 
 export function getDoctorToolDefinition(name: DoctorToolName): DoctorToolDefinition {
-  const tool = tools.find((candidate) => candidate.name === name);
+  const tool = enrichedTools.find((candidate) => candidate.name === name);
   if (!tool) {
     throw new Error(`Unknown Doctor ToolNet tool: ${name}`);
   }
   return tool;
+}
+
+function sideEffectFor(name: DoctorToolName): DoctorToolSideEffect {
+  if (name === "doctor.dtr.save_response" || name === "doctor.pas.submit_mock" || name === "doctor.pas.submit_claim_fhir_mock") {
+    return "case-state";
+  }
+  return "none";
+}
+
+function idempotencyFor(name: DoctorToolName): DoctorToolIdempotency {
+  if (name === "doctor.pas.submit_mock" || name === "doctor.pas.submit_claim_fhir_mock") {
+    return "required";
+  }
+  if (name === "doctor.dtr.save_response") {
+    return "recommended";
+  }
+  return "not-applicable";
+}
+
+function mcpExposureFor(tool: BaseDoctorToolDefinition): DoctorToolMcpExposure {
+  if (tool.approval.approvalRequired) {
+    return "approval-gated";
+  }
+  return tool.riskLevel === "read" ? "read-only" : "hidden";
+}
+
+function standardsCapabilityIdFor(name: DoctorToolName): string | undefined {
+  const mappings: Partial<Record<DoctorToolName, string>> = {
+    "doctor.case.get": "prior-auth-case-read",
+    "doctor.queue.list_work_items": "prior-auth-queue-read",
+    "doctor.case.get_audit_trace": "prior-auth-audit-read",
+    "doctor.evidence.list": "evidence-document-reference",
+    "doctor.crd.discover_services": "crd-discover-services",
+    "doctor.crd.invoke_service": "crd-invoke-service",
+    "doctor.dtr.get_questionnaire_package_fhir": "dtr-questionnaire-package",
+    "doctor.pas.submit_claim_fhir_mock": "pas-claim-submit"
+  };
+  return mappings[name] ?? "local-toolnet";
 }

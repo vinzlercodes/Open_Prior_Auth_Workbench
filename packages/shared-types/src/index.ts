@@ -454,6 +454,26 @@ export interface EvidenceFixtureSummary {
   sizeBytes: number;
   sha256: string;
   contentMode: EvidenceContentMode;
+  supportsRequirementIds?: string[];
+  evidenceStrength?: EvidenceMappingStrength;
+  citedFields?: string[];
+}
+
+export type EvidenceMappingMethod = "fixture-tag" | "rule" | "human" | "llm-draft";
+export type EvidenceMappingStrength = "strong" | "weak" | "contradictory" | "missing";
+
+export interface EvidenceMapping {
+  id: string;
+  caseId: string;
+  evidenceItemId: string | null;
+  requirementId: string;
+  mappingMethod: EvidenceMappingMethod;
+  strength: EvidenceMappingStrength;
+  rationale: string;
+  citedFields: string[];
+  acceptedBy?: string;
+  acceptedAt?: string;
+  createdAt: string;
 }
 
 export interface AttachEvidenceRequest {
@@ -677,7 +697,17 @@ export interface AgentCockpitApprovalSummary {
   id: string;
   toolName: string;
   riskLevel: string;
-  status: "pending" | "approved" | "rejected";
+  status:
+    | "pending"
+    | "requested"
+    | "viewed"
+    | "approved"
+    | "rejected"
+    | "expired"
+    | "superseded"
+    | "executing"
+    | "executed"
+    | "execution_failed";
   reason: string;
   requestedBy: string;
   requestedAt: string;
@@ -695,6 +725,10 @@ export interface AgentCockpitRequirementEvidenceRow {
   sourceLabel: string;
   evidenceAttachmentIds: string[];
   fixtureIds: string[];
+  mappings?: EvidenceMapping[];
+  strongestEvidence?: EvidenceMappingStrength;
+  rationale?: string;
+  citedFields?: string[];
 }
 
 export interface AgentCockpitRunResponse {

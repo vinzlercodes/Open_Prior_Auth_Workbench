@@ -2,6 +2,7 @@ export * from "./domain.js";
 export * from "./errors.js";
 export * from "./evaluation/evaluate.js";
 export * from "./evaluation/hash.js";
+export * from "./evidence/evidenceMapping.js";
 export * from "./evidence/evidenceRepository.js";
 export * from "./operations/operationsService.js";
 export * from "./ports.js";

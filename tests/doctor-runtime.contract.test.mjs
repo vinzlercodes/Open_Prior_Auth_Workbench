@@ -423,7 +423,8 @@ test("unguarded runtime tool executes through ToolNet and records durable trace"
   assert.equal(fixture.runtimeStore.getToolCallRecord(result.record.callId).toolName, "doctor.case.get");
 
   const trace = fixture.runtimeStore.listTraceEvents(result.run.id);
-  assert.deepEqual(trace.map((event) => event.sequence), [1, 2, 3, 4]);
+  assert.deepEqual(trace.map((event) => event.sequence), [1, 2, 3, 4, 5]);
+  assert.ok(trace.some((event) => event.type === "policy.checked"));
   assert.ok(trace.some((event) => event.type === "tool_call.succeeded"));
   fixture.runtimeStore.close();
 });

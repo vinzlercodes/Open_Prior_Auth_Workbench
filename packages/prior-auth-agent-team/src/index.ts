@@ -2,6 +2,10 @@ export {
   createPriorAuthRuntimeToolCatalog
 } from "./runtimeBridge.js";
 export {
+  DeterministicPriorAuthReplayPlanner,
+  deterministicPriorAuthReplayPlan
+} from "./replayPlanner.js";
+export {
   ComplianceBoundaryAgent,
   DocumentationAgent,
   EvidenceAgent,

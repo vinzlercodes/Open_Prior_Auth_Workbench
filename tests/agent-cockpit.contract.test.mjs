@@ -86,6 +86,7 @@ for (const [label, scenario] of [
       assert.ok(Array.isArray(body.evidenceBoard));
       assert.ok(body.evidenceBoard.some((row) => row.requirementCode === "diagnosis-context"));
       assert.ok(body.evidenceBoard.some((row) => row.requirementCode !== "diagnosis-context"));
+      assert.ok(body.evidenceBoard.some((row) => row.strongestEvidence === "strong" && /fixture metadata/i.test(row.rationale ?? "")));
       assert.deepEqual(body.steps.map((step) => step.agent), [
         "requirement",
         "documentation",
