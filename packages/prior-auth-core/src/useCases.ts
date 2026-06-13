@@ -14,7 +14,6 @@ import type {
 import type {
   PayerDetermination,
   PriorAuthorizationCase,
-  PriorAuthorizationRequest,
   PriorAuthorizationRequestStatus
 } from "./domain.js";
 import { OperationOutcomeError } from "./errors.js";

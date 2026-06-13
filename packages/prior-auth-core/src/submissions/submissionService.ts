@@ -1,6 +1,5 @@
 import type {
   EvidenceAttachment,
-  FhirBundle,
   PacketBuildRequest,
   PacketSubmitRequest,
   QuestionnaireSession,
