@@ -437,13 +437,7 @@ function recordAgentStarted(
   context: AgentContext,
   dependencies: DoctorRuntimeDependencies
 ): void {
-  dependencies.runtimeStore.recordTraceEvent({
-    runId: context.runId,
-    type: "agent.started",
-    actor: context.actorUserId,
-    message: `${role} agent started.`,
-    data: { agentRole: role }
-  });
+  recordAgentLifecycle(role, "started", context, dependencies);
 }
 
 function recordAgentCompleted(
@@ -451,11 +445,20 @@ function recordAgentCompleted(
   context: AgentContext,
   dependencies: DoctorRuntimeDependencies
 ): void {
+  recordAgentLifecycle(role, "completed", context, dependencies);
+}
+
+function recordAgentLifecycle(
+  role: PriorAuthAgentRole,
+  state: "started" | "completed",
+  context: AgentContext,
+  dependencies: DoctorRuntimeDependencies
+): void {
   dependencies.runtimeStore.recordTraceEvent({
     runId: context.runId,
-    type: "agent.completed",
+    type: `agent.${state}`,
     actor: context.actorUserId,
-    message: `${role} agent completed.`,
+    message: `${role} agent ${state}.`,
     data: { agentRole: role }
   });
 }

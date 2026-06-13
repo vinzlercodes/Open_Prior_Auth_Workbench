@@ -1,3 +1,5 @@
+import { DatabaseSync, type SQLOutputValue } from "node:sqlite";
+
 export type WorkflowRunStatus = "created" | "running" | "waiting_for_signal" | "completed" | "failed" | "cancelled";
 
 export interface WorkflowRun {
@@ -179,10 +181,10 @@ export class SqliteWorkflowStore implements WorkflowStore {
 
   listPendingRuns(): WorkflowRun[] {
     return this.database.prepare(`
-      SELECT * FROM workflow_runs
+      SELECT id, case_id, agent_run_id, workflow_type, status, created_at, updated_at FROM workflow_runs
       WHERE status IN ('created', 'running', 'waiting_for_signal')
       ORDER BY created_at, id
-    `).all().map((row) => runFromRow(row as unknown as WorkflowRunRow));
+    `).all().map(runFromSqlRow);
   }
 
   saveCheckpoint(checkpoint: WorkflowCheckpoint): WorkflowCheckpoint {
@@ -195,8 +197,8 @@ export class SqliteWorkflowStore implements WorkflowStore {
 
   listCheckpoints(runId: string): WorkflowCheckpoint[] {
     return this.database.prepare(`
-      SELECT * FROM workflow_checkpoints WHERE run_id = ? ORDER BY created_at, id
-    `).all(runId).map((row) => checkpointFromRow(row as unknown as WorkflowCheckpointRow));
+      SELECT id, run_id, name, state_json, created_at FROM workflow_checkpoints WHERE run_id = ? ORDER BY created_at, id
+    `).all(runId).map(checkpointFromSqlRow);
   }
 
   saveSignal(signal: WorkflowSignal): WorkflowSignal {
@@ -209,8 +211,8 @@ export class SqliteWorkflowStore implements WorkflowStore {
 
   listSignals(runId: string): WorkflowSignal[] {
     return this.database.prepare(`
-      SELECT * FROM workflow_signals WHERE run_id = ? ORDER BY created_at, id
-    `).all(runId).map((row) => signalFromRow(row as unknown as WorkflowSignalRow));
+      SELECT id, run_id, type, payload_json, created_at FROM workflow_signals WHERE run_id = ? ORDER BY created_at, id
+    `).all(runId).map(signalFromSqlRow);
   }
 
   reserveIdempotencyKey(input: IdempotencyKey): boolean {
@@ -257,6 +259,59 @@ interface WorkflowSignalRow {
   type: string;
   payload_json: string;
   created_at: string;
+}
+
+function runFromSqlRow(row: Record<string, SQLOutputValue>): WorkflowRun {
+  const status = stringColumn(row, "status");
+  if (!isWorkflowRunStatus(status)) {
+    throw new Error(`Unexpected workflow run status: ${status}`);
+  }
+  return runFromRow({
+    id: stringColumn(row, "id"),
+    case_id: stringColumn(row, "case_id"),
+    agent_run_id: stringColumn(row, "agent_run_id"),
+    workflow_type: stringColumn(row, "workflow_type"),
+    status,
+    created_at: stringColumn(row, "created_at"),
+    updated_at: stringColumn(row, "updated_at")
+  });
+}
+
+function checkpointFromSqlRow(row: Record<string, SQLOutputValue>): WorkflowCheckpoint {
+  return checkpointFromRow({
+    id: stringColumn(row, "id"),
+    run_id: stringColumn(row, "run_id"),
+    name: stringColumn(row, "name"),
+    state_json: stringColumn(row, "state_json"),
+    created_at: stringColumn(row, "created_at")
+  });
+}
+
+function signalFromSqlRow(row: Record<string, SQLOutputValue>): WorkflowSignal {
+  return signalFromRow({
+    id: stringColumn(row, "id"),
+    run_id: stringColumn(row, "run_id"),
+    type: stringColumn(row, "type"),
+    payload_json: stringColumn(row, "payload_json"),
+    created_at: stringColumn(row, "created_at")
+  });
+}
+
+function stringColumn(row: Record<string, SQLOutputValue>, column: string): string {
+  const value = row[column];
+  if (typeof value !== "string") {
+    throw new Error(`Expected ${column} to be a string.`);
+  }
+  return value;
+}
+
+function isWorkflowRunStatus(value: string): value is WorkflowRunStatus {
+  return value === "created"
+    || value === "running"
+    || value === "waiting_for_signal"
+    || value === "completed"
+    || value === "failed"
+    || value === "cancelled";
 }
 
 function runFromRow(row: WorkflowRunRow): WorkflowRun {
@@ -366,4 +421,3 @@ export function resumeRun(store: WorkflowStore, runId: string): {
 function snapshot<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
 }
-import { DatabaseSync } from "node:sqlite";

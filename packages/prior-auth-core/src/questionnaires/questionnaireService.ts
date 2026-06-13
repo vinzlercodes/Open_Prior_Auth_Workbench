@@ -847,7 +847,10 @@ function isCoding(value: unknown): value is FhirCoding {
 }
 
 function codingEquals(left: FhirCoding | undefined, right: FhirCoding): boolean {
-  return Boolean(left && left.system === right.system && left.code === right.code);
+  if (!left) {
+    return false;
+  }
+  return left.system === right.system && left.code === right.code;
 }
 
 function formatHumanName(resource: FhirResource | null): string | null {
