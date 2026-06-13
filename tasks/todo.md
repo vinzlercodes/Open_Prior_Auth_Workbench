@@ -28,9 +28,31 @@
 ## Active Follow-Ups
 
 - [x] Sync stale status docs called out in `tasks/audit.md`: root docs, package READMEs, roadmap, architecture docs, demo story, compose notes, and active audit notes.
-- [ ] Decide whether `packages/doctor-mcp` should remain a placeholder or become the next implementation milestone.
+- [x] Decide whether `packages/doctor-mcp` should remain a placeholder or become the next implementation milestone.
 - [ ] Decide whether to add dedicated UI/e2e coverage for the Agent Cockpit beyond build/typecheck and API-backed contract tests.
 - [ ] Decide whether to split `apps/api/src/storage/sqliteStore.ts` into smaller repositories after the runtime/API hardening pass.
+
+## Agentic Gap Closure
+
+### Plan
+
+- [x] Create `tasks/agentic-gap-roadmap.md` from the current shortcomings audit.
+- [x] Add `demo/agentic-gap-closure/README.md` with verification commands.
+- [x] Run baseline verification before implementation.
+- [x] Add package/script foundation for policy, standards, workflow, MCP, worker, and MCP server.
+- [x] Add first ToolNet metadata and policy hook surface.
+- [x] Add first read-only MCP catalog surface.
+- [x] Add first runtime runner/planner/resumer interfaces.
+- [x] Add first durable workflow checkpoint/signal/idempotency surface.
+- [x] Complete deeper API modularization, evidence mapping persistence, approval lifecycle UI, expanded evals, and cockpit split.
+
+### Review
+
+- Baseline passed after localhost test approval: `npm test` 92/92, `npm run typecheck`, `npm run build`, and `npm run evals` 4/4 with 88/88 assertions.
+- Implemented package/script foundation, policy hook traces, read-only MCP catalog/server, runner/replay planner interfaces, workflow checkpoint/worker surface, API split, evidence mapping domain, expanded approval lifecycle fields, standards catalog/matrix, 12-scenario eval scorecard, cockpit panel split, docs, and release notes.
+- Final verification passed: `npm test` 108/108, `npm run typecheck`, `npm run build`, `npm run evals` 12/12 with 256/256 assertions, `npm run evals:report` 12/12 with 256/256 assertions, and `npm run package-boundaries`.
+- Browser smoke passed on `http://localhost:3000`: cockpit rendered, no runtime error, and public action now says `Run replay planner`.
+- GitNexus `detect_changes` could not complete because the MCP call returned `Transport closed`; no commit was made.
 
 ## Genesis Architecture Review
 
