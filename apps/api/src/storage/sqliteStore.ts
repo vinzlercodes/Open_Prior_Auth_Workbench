@@ -949,6 +949,27 @@ function auditEventFromRow(row: Row): AuditEvent {
 const STATUS_CHECK = "'draft','requirements_found','not_required','needs_baseline_data','questionnaire_in_progress','review_ready','packet_ready','submitted','more_info_needed','approved','denied','cancelled','submission_failed'";
 const PAYER_STATUS_CHECK = "'pended','approved','denied','cancelled'";
 const ACTOR_CHECK = "'user','mock-payer','system'";
+const SUBMISSION_PACKET_COLUMNS_SQL = `
+  id TEXT PRIMARY KEY NOT NULL,
+  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
+  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version IN ('m3.local-pas-style.v1','m7.local-pas-evidence.v1')),
+  built_at TEXT NOT NULL,
+  transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
+  bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
+  attachment_manifest_json TEXT NOT NULL CHECK (json_valid(attachment_manifest_json)),
+  snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
+  snapshot_work_item_id TEXT NOT NULL,
+  snapshot_questionnaire_response_id TEXT NOT NULL,
+  snapshot_questionnaire_response_revision INTEGER NOT NULL CHECK (snapshot_questionnaire_response_revision >= 1),
+  snapshot_payer_id TEXT NOT NULL,
+  UNIQUE (
+    snapshot_work_item_id,
+    snapshot_questionnaire_response_id,
+    snapshot_questionnaire_response_revision,
+    snapshot_payer_id,
+    packet_schema_version
+  )
+`;
 
 const SCHEMA_SQL = `
 CREATE TABLE requirement_runs (
@@ -988,25 +1009,7 @@ CREATE TABLE questionnaire_sessions (
 ) STRICT;
 
 CREATE TABLE submission_packets (
-  id TEXT PRIMARY KEY NOT NULL,
-  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
-  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version IN ('m3.local-pas-style.v1','m7.local-pas-evidence.v1')),
-  built_at TEXT NOT NULL,
-  transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
-  bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
-  attachment_manifest_json TEXT NOT NULL CHECK (json_valid(attachment_manifest_json)),
-  snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
-  snapshot_work_item_id TEXT NOT NULL,
-  snapshot_questionnaire_response_id TEXT NOT NULL,
-  snapshot_questionnaire_response_revision INTEGER NOT NULL CHECK (snapshot_questionnaire_response_revision >= 1),
-  snapshot_payer_id TEXT NOT NULL,
-  UNIQUE (
-    snapshot_work_item_id,
-    snapshot_questionnaire_response_id,
-    snapshot_questionnaire_response_revision,
-    snapshot_payer_id,
-    packet_schema_version
-  )
+${SUBMISSION_PACKET_COLUMNS_SQL}
 ) STRICT;
 
 CREATE TABLE submission_receipts (
@@ -1113,25 +1116,7 @@ CREATE TABLE IF NOT EXISTS evidence_attachments (
 CREATE INDEX IF NOT EXISTS idx_evidence_attachments_work_item ON evidence_attachments(work_item_id, created_at);
 
 CREATE TABLE IF NOT EXISTS submission_packets_v2 (
-  id TEXT PRIMARY KEY NOT NULL,
-  work_item_id TEXT NOT NULL REFERENCES work_items(id) ON DELETE CASCADE,
-  packet_schema_version TEXT NOT NULL CHECK (packet_schema_version IN ('m3.local-pas-style.v1','m7.local-pas-evidence.v1')),
-  built_at TEXT NOT NULL,
-  transport TEXT NOT NULL CHECK (transport = 'mock-pas'),
-  bundle_json TEXT NOT NULL CHECK (json_valid(bundle_json)),
-  attachment_manifest_json TEXT NOT NULL CHECK (json_valid(attachment_manifest_json)),
-  snapshot_json TEXT NOT NULL CHECK (json_valid(snapshot_json)),
-  snapshot_work_item_id TEXT NOT NULL,
-  snapshot_questionnaire_response_id TEXT NOT NULL,
-  snapshot_questionnaire_response_revision INTEGER NOT NULL CHECK (snapshot_questionnaire_response_revision >= 1),
-  snapshot_payer_id TEXT NOT NULL,
-  UNIQUE (
-    snapshot_work_item_id,
-    snapshot_questionnaire_response_id,
-    snapshot_questionnaire_response_revision,
-    snapshot_payer_id,
-    packet_schema_version
-  )
+${SUBMISSION_PACKET_COLUMNS_SQL}
 ) STRICT;
 
 INSERT OR IGNORE INTO submission_packets_v2 (
